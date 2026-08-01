@@ -1,0 +1,54 @@
+# Python build artifacts and cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual environments
+venv/
+.venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+
+# Data and cache directories
+data/
+cache/
+.cache/
+datasets_cache/
+*.h5
+*.hdf5
+*.pkl
+*.npy
+*.npz
+*.csv
+*.parquet
+
+# Testing & Coverage
+.pytest_cache/
+.coverage
+htmlcov/
+
+# IDE and OS specific files
+.ipynb_checkpoints
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
