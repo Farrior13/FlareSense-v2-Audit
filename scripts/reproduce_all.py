@@ -86,7 +86,7 @@ def main(output_dir: str):
     columns = ["manual_label", "prob", "model_label", "start_datetime", "antenna"]
     
     train_df = ds["train"].to_pandas()[columns]
-    val_df = ds["validation"].to_pandas()[columns]
+    val_df = ds["val"].to_pandas()[columns]
     test_df = ds["test"].to_pandas()[columns]
     
     # 3a. Dataset sizes
@@ -125,8 +125,8 @@ def main(output_dir: str):
     test_df["start_datetime"] = pd.to_datetime(test_df["start_datetime"])
     
     # Filter bursts (manual_label == 1)
-    tv_bursts = train_val_df[train_val_df["manual_label"] == 1]
-    test_bursts = test_df[test_df["manual_label"] == 1]
+    tv_bursts = train_val_df[train_val_df["manual_label"] != 0]
+    test_bursts = test_df[test_df["manual_label"] != 0]
     
     # 15-min buckets
     tv_15m = tv_bursts["start_datetime"].dt.floor("15min").unique()
@@ -163,7 +163,7 @@ def main(output_dir: str):
     test_df_w_leak_flag = test_df.copy()
     test_df_w_leak_flag["15m_floor"] = test_df_w_leak_flag["start_datetime"].dt.floor("15min")
     
-    is_burst = test_df_w_leak_flag["manual_label"] == 1
+    is_burst = test_df_w_leak_flag["manual_label"] != 0
     is_leaked = test_df_w_leak_flag["15m_floor"].isin(tv_15m) & is_burst
     
     clean_test_df = test_df_w_leak_flag[~is_leaked]
@@ -247,9 +247,9 @@ def main(output_dir: str):
     pi_values = [0.10, 0.01, 0.001, 0.0001]
     ppv_results = {}
     
-    # Use clean 15m TPR/FPR
-    tpr = clean_metrics["tpr"]
-    fpr = clean_metrics["fpr"]
+    # Use full test TPR/FPR (as in the audit report)
+    tpr = full_metrics["tpr"]
+    fpr = full_metrics["fpr"]
     
     for pi in pi_values:
         ppv = bayesian_ppv(tpr, fpr, pi)
