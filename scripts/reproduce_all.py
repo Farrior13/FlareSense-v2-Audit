@@ -102,7 +102,7 @@ def main(output_dir: str):
     }
 
     # 3b-d. Full test metrics
-    y_test_true = test_df["manual_label"].values
+    y_test_true = (test_df["manual_label"] != 0).astype(int).values
     y_test_pred = test_df["model_label"].values
     
     full_metrics = calculate_metrics(y_test_true, y_test_pred)
@@ -168,7 +168,7 @@ def main(output_dir: str):
     
     clean_test_df = test_df_w_leak_flag[~is_leaked]
     
-    y_clean_true = clean_test_df["manual_label"].values
+    y_clean_true = (clean_test_df["manual_label"] != 0).astype(int).values
     y_clean_pred = clean_test_df["model_label"].values
     
     clean_metrics = calculate_metrics(y_clean_true, y_clean_pred)

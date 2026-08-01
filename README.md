@@ -7,13 +7,15 @@
 
 An independent methodological audit of **FlareSense-v2** (Timmel et al. 2026, [arXiv:2607.26014v1](https://arxiv.org/html/2607.26014v1)), a deep learning system for solar radio burst detection on e-CALLISTO spectrograms.
 
-We identify event-level data leakage (65–74% of test bursts share physical events with training), test-set hyperparameter tuning, and base rate sensitivity. After removing event overlap, **F1 drops from 84.9% to 74.3%** [95% CI: 72.4–76.1] and **precision drops by 15.4 pp** [95% CI: 12.9–17.8]. All findings are reproducible from the publicly available HuggingFace dataset without GPU access.
+We identify event-level data leakage (65–74% of test bursts share physical events with training), test-set hyperparameter tuning, and base rate sensitivity. After removing event overlap, **recall drops from 83.4% to 73.3%** (−10 pp) and model confidence shifts (median 0.978 → 0.831). The headline precision drop of −15.4 pp includes a compositional artifact from the changed class balance (see full report §4.1). All findings are reproducible from the publicly available HuggingFace dataset without GPU access.
+
+> **⚠️ Model version note:** The predictions in the HuggingFace dataset were uploaded on 19 October 2024, before the FlareSense-v2 checkpoint (January 2025) and paper (July 2026). Structural findings (event-level leakage, test-set tuning) apply directly; specific delta magnitudes may differ for the final model. See the [full report](docs/audit_v1.md) for details.
 
 ## Key Findings
 
 1. **Event-Level Data Leakage**: 65–74% of test burst samples share a physical solar event with training data. The random split does not account for the fact that the same burst is recorded by multiple stations simultaneously.
 
-2. **Performance Degradation**: Removing event overlap drops F1 from 84.9% to 74.3% (−10.7 pp) and precision from 90.6% to 75.2% (−15.4 pp). All deltas are statistically significant (bootstrap 95% CI excludes zero).
+2. **Performance Degradation**: Removing event overlap drops recall from 83.4% to 73.3% (−10.0 pp on burst samples) and shifts model confidence (median prob 0.978 → 0.831). The headline precision drop (−15.4 pp) and F1 drop (−10.7 pp) are statistically significant (bootstrap 95% CI excludes zero) but include a compositional component from the changed class balance in the clean subset.
 
 3. **Confidence Shift**: The model assigns systematically higher probabilities to leaked bursts (median 0.978) than clean ones (median 0.831), indicating event-specific calibration rather than physics-based generalization.
 
@@ -27,7 +29,7 @@ We identify event-level data leakage (65–74% of test bursts share physical eve
 # Install dependencies
 pip install -r requirements.txt
 
-# Reproduce all metrics (takes ~3-5 min, downloads ~2GB dataset on first run)
+# Reproduce all metrics (downloads ~67.5GB dataset with images on first run)
 python scripts/reproduce_all.py
 
 # Generate all 6 figures
@@ -48,7 +50,7 @@ FlareSense-v2-Audit/
 ├── LICENSE
 ├── requirements.txt
 ├── docs/
-│   └── audit_v1.md              # Full audit report (v1.0)
+│   └── audit_v1.md              # Full audit report (v1.1)
 ├── scripts/
 │   ├── reproduce_all.py          # Main: reproduces all metrics + bootstrap CIs
 │   ├── generate_figures.py       # Generates all 6 publication-ready figures
@@ -76,7 +78,7 @@ FlareSense-v2-Audit/
              Evidence of Event-Level Evaluation Leakage in
              Solar Radio Burst Classification},
   year    = {2026},
-  note    = {Version 1.0},
+  note    = {Version 1.1},
   url     = {https://github.com/Farrior13/FlareSense-v2-Audit}
 }
 ```
