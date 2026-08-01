@@ -77,7 +77,7 @@ FlareSense-v2-Audit/
              Solar Radio Burst Classification},
   year    = {2026},
   note    = {Version 1.0},
-  url     = {https://github.com/OWNER/FlareSense-v2-Audit}
+  url     = {https://github.com/Farrior13/FlareSense-v2-Audit}
 }
 ```
 
