@@ -9,8 +9,6 @@ An independent methodological audit of **FlareSense-v2** (Timmel et al. 2026, [a
 
 We identify event-level data leakage (65–74% of test bursts share physical events with training), test-set hyperparameter tuning, and base rate sensitivity. After removing event overlap, **recall drops from 83.4% to 73.3%** (−10 pp) and model confidence shifts (median 0.978 → 0.831). The headline precision drop of −15.4 pp includes a compositional artifact from the changed class balance (see full report §4.1). All findings are reproducible from the publicly available HuggingFace dataset without GPU access.
 
-> **⚠️ Model version note:** The predictions in the HuggingFace dataset were uploaded on 19 October 2024, before the FlareSense-v2 checkpoint (January 2025) and paper (July 2026). Structural findings (event-level leakage, test-set tuning) apply directly; specific delta magnitudes may differ for the final model. See the [full report](docs/audit_v1.md) for details.
-
 ## Key Findings
 
 1. **Event-Level Data Leakage**: 65–74% of test burst samples share a physical solar event with training data. The random split does not account for the fact that the same burst is recorded by multiple stations simultaneously.
