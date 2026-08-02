@@ -620,6 +620,16 @@ print(f"Clean F1:        {f1_score(y_true_clean, y_pred_clean):.4f}")         # 
 
 ---
 
+## Appendix A: Supplementary Validation (Benchmark v2)
+
+The `benchmark_v2` directory contains supplementary validation scripts that evaluate whether the event graph structure is non-trivial, stable, and robust against randomization. 
+
+> [!IMPORTANT]
+> **This benchmark is not used as evidence for the primary audit findings.** 
+> The main conclusions of this report are based strictly on leakage reproduction and repository forensics as presented in the preceding sections. The structural analysis in `benchmark_v2` is an exploratory component provided for completeness.
+
+---
+
 ## References
 
 1. Benz, A.O., Monstein, C. & Meyer, H. (2009). *"CALLISTO — A New Concept for Solar Radio Spectrometers"*. Earth, Moon, and Planets, 104, 275–279.

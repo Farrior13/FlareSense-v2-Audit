@@ -48,7 +48,17 @@ FlareSense-v2-Audit/
 ├── LICENSE
 ├── requirements.txt
 ├── docs/
-│   └── audit_v1.md              # Full audit report (v1.1)
+│   ├── audit_v1.md              # Full audit report (v1.1)
+│   └── supplementary_forensics.md
+├── benchmark_v2/                 # Supplementary Event Graph (STI) Falsification & Benchmark Suite
+│   ├── README.md                # Benchmark documentation & architecture
+│   ├── graph_utils.py           # Single source of truth for graph construction
+│   ├── benchmark_core.py        # Main audit protocol
+│   ├── eg_loso_core.py          # EG-LOSO evaluation (Graph vs Temporal)
+│   ├── structural_core.py       # Targeted edge removal & structural metrics
+│   ├── adversarial_core.py      # Null models & adversarial edge perturbations
+│   ├── test_metrics.py          # Unit test suite
+│   └── docs/                    # Structural docs & ablation ladder
 ├── scripts/
 │   ├── reproduce_all.py          # Main: reproduces all metrics + bootstrap CIs
 │   ├── generate_figures.py       # Generates all 6 publication-ready figures
@@ -63,6 +73,18 @@ FlareSense-v2-Audit/
 │   └── fig6_per_station_delta_f1.png
 └── results/                      # Generated JSON outputs
 ```
+
+## Event Graph Benchmark (v2)
+
+The `benchmark_v2/` directory contains an independent falsification benchmark suite evaluating whether multi-station event graph structures are non-trivial, stable, and robust against randomization.
+
+Key components:
+- **Canonical Graph Core (`graph_utils.py`)**: Unified single source of truth for graph construction, topology metrics, and $IoU$/$IoL$ calculations.
+- **EG-LOSO Evaluation (`eg_loso_core.py`)**: Leave-One-Station-Out evaluation comparing event coverage ($IoL$) against a fair 1D temporal coincidence baseline.
+- **Null Models & Stress Tests (`benchmark_core.py`, `adversarial_core.py`)**: Time-shift null models, degree-preserving configuration models, station shuffling, and edge perturbation stress tests.
+
+> [!NOTE]
+> The primary conclusions of this audit are based strictly on leakage reproduction and repository forensics as presented in [docs/audit_v1.md](docs/audit_v1.md). The `benchmark_v2` suite provides supplementary structural evidence.
 
 ## Full Report
 

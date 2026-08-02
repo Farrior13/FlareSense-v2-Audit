@@ -5,33 +5,16 @@ from datasets import load_dataset
 from pathlib import Path
 from sklearn.metrics import adjusted_rand_score
 import logging
+import sys
+
+# Add parent directories to path for imports
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
+from graph_utils import build_graph_events, evaluate_topology
 
 logging.basicConfig(level=logging.INFO, format="%(message)s")
-REPORTS_DIR = Path("../reports")
+REPORTS_DIR = Path(__file__).resolve().parent.parent / "reports"
 REPORTS_DIR.mkdir(parents=True, exist_ok=True)
 
-def build_graph_events(df, window_minutes=15):
-    """Build events using Strict Temporal Intersection of windows. Assumes df is sorted by start_datetime."""
-    G = nx.Graph()
-    G.add_nodes_from(range(len(df)))
-    
-    start_times = df["start_datetime"].values
-    end_times = (df["start_datetime"] + pd.Timedelta(minutes=window_minutes)).values
-    
-    # Add edges for overlapping windows
-    for i in range(len(df)):
-        for j in range(i+1, len(df)):
-            if start_times[j] >= end_times[i]:
-                break
-            G.add_edge(i, j)
-            
-    components = list(nx.connected_components(G))
-    comp_map = {}
-    for comp_id, nodes in enumerate(components):
-        for node in nodes:
-            comp_map[node] = comp_id
-            
-    return df.index.map(comp_map), G
 
 def calculate_event_stats(df, event_col="event_id"):
     stats = df.groupby(event_col).agg(
@@ -86,10 +69,10 @@ def test_2_3_4_component_structure(df_bursts, G):
         subg = G.subgraph(nodes)
         d = nx.diameter(subg)
         diameters.append(d)
-        
-        span = stats.loc[comp_id, 'duration_min']
-        if d > 0:
-            ratios.append(span / d)
+        if comp_id in stats.index:
+            span = stats.loc[comp_id, 'duration_min']
+            if d > 0:
+                ratios.append(span / d)
             
     if diameters:
         logging.info(f"Graph Diameter: Median={np.median(diameters):.1f}, Max={np.max(diameters)}")
@@ -103,7 +86,7 @@ def test_5_6_window_sensitivity(bursts):
     labels_dict = {}
     
     for w in windows:
-        labels, _ = build_graph_events(bursts, w)
+        labels, G_temp, comps = build_graph_events(bursts, w, cross_station_only=False)
         labels_dict[w] = labels
         bursts[f"event_{w}m"] = labels
         stats = calculate_event_stats(bursts, f"event_{w}m")
@@ -132,17 +115,17 @@ def test_7_8_station_ablation(bursts):
     logging.info(f"Top 1 Station: {top1} ({station_counts.iloc[0]} samples)")
     
     # Baseline
-    labels_base, _ = build_graph_events(bursts, 15)
+    labels_base, G_base, comps_base = build_graph_events(bursts, 15, cross_station_only=False)
     base_events = len(np.unique(labels_base))
     
     # Ablate Top 1
     b_no_top1 = bursts[bursts['antenna'] != top1].copy()
-    labels_no1, _ = build_graph_events(b_no_top1, 15)
+    labels_no1, _, _ = build_graph_events(b_no_top1, 15, cross_station_only=False)
     no1_events = len(np.unique(labels_no1))
     
     # Ablate Top 5
     b_no_top5 = bursts[~bursts['antenna'].isin(top5)].copy()
-    labels_no5, _ = build_graph_events(b_no_top5, 15)
+    labels_no5, _, _ = build_graph_events(b_no_top5, 15, cross_station_only=False)
     no5_events = len(np.unique(labels_no5))
     
     logging.info(f"Baseline events: {base_events}")
@@ -170,7 +153,7 @@ def test_10_11_null_models(bursts):
     null_a = bursts.copy()
     null_a['start_datetime'] = np.random.permutation(null_a['start_datetime'].values)
     null_a = null_a.sort_values("start_datetime").reset_index(drop=True)
-    labels_a, _ = build_graph_events(null_a, 15)
+    labels_a, _, _ = build_graph_events(null_a, 15, cross_station_only=False)
     null_a['event_id'] = labels_a
     stats_a = calculate_event_stats(null_a)
     
@@ -180,16 +163,18 @@ def test_10_11_null_models(bursts):
     null_b = bursts.copy()
     null_b['start_datetime'] = null_b.groupby('antenna')['start_datetime'].transform(np.random.permutation)
     null_b = null_b.sort_values("start_datetime").reset_index(drop=True)
-    labels_b, _ = build_graph_events(null_b, 15)
+    labels_b, _, _ = build_graph_events(null_b, 15, cross_station_only=False)
     null_b['event_id'] = labels_b
     stats_b = calculate_event_stats(null_b)
     
     logging.info(f"Null Model B (Station-Preserving): {len(stats_b)} events, Max Dur: {stats_b['duration_min'].max():.1f}m")
     
+    real_stats = calculate_event_stats(bursts, "event_15m")
+    
     null_df = pd.DataFrame({
         "Model": ["Real", "Null A (Global)", "Null B (Station)"],
-        "Events": [6888, len(stats_a), len(stats_b)],
-        "Max_Duration": [61.0, stats_a['duration_min'].max(), stats_b['duration_min'].max()]
+        "Events": [len(real_stats), len(stats_a), len(stats_b)],
+        "Max_Duration": [real_stats['duration_min'].max(), stats_a['duration_min'].max(), stats_b['duration_min'].max()]
     })
     null_df.to_csv(REPORTS_DIR / "null_model_results.csv", index=False)
 
@@ -203,7 +188,7 @@ def test_12_cross_year(bursts):
         b_year = bursts[bursts['year'] == y].copy()
         if len(b_year) == 0: continue
         
-        labels, _ = build_graph_events(b_year, 15)
+        labels, _, _ = build_graph_events(b_year, 15, cross_station_only=False)
         b_year['event_id'] = labels
         stats = calculate_event_stats(b_year)
         
@@ -229,7 +214,7 @@ def main():
     bursts["end_datetime"] = bursts["start_datetime"] + pd.Timedelta(minutes=15)
     
     # Baseline labels for stats
-    labels_15m, G_15m = build_graph_events(bursts, 15)
+    labels_15m, G_15m, comps_15m = build_graph_events(bursts, 15, cross_station_only=False)
     bursts["event_15m"] = labels_15m
     
     test_1_label_consistency(df, bursts)

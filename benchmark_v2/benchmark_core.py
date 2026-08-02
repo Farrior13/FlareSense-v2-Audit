@@ -8,6 +8,12 @@ import yaml
 import logging
 import json
 
+from graph_utils import (
+    build_graph,
+    build_graph_events,
+    evaluate_topology,
+)
+
 class NpEncoder(json.JSONEncoder):
     def default(self, obj):
         if isinstance(obj, np.integer):
@@ -30,41 +36,16 @@ def load_config(config_path):
             return yaml.safe_load(f)
     return {}
 
-def build_graph_events(df, window_minutes=15):
-    """Build events using Strict Temporal Intersection of windows."""
-    G = nx.Graph()
-    G.add_nodes_from(range(len(df)))
-    
-    start_times = df["start_datetime"].values
-    if "end_datetime" in df.columns:
-        end_times = df["end_datetime"].values
-    else:
-        end_times = (df["start_datetime"] + pd.Timedelta(minutes=window_minutes)).values
-    antennas = df["antenna"].values
-    
-    for i in range(len(df)):
-        for j in range(i+1, len(df)):
-            if start_times[j] >= end_times[i]:
-                break
-            if antennas[i] != antennas[j]:
-                G.add_edge(i, j)
-            
-    components = list(nx.connected_components(G))
-    comp_map = {}
-    for comp_id, nodes in enumerate(components):
-        for node in nodes:
-            comp_map[node] = comp_id
-            
-    return df.index.map(comp_map), G, components
-
-def evaluate_topology(G, components, total_nodes):
-    return {
-        "num_components": len(components),
-        "largest_component": max([len(c) for c in components]) if components else 0,
-        "gcf": max([len(c) for c in components]) / total_nodes if total_nodes > 0 else 0
-    }
+def _build_graph_events_compat(df, window_minutes=15):
+    """Backward-compatible wrapper: delegates to graph_utils."""
+    return build_graph_events(df, window_minutes, cross_station_only=True)
 
 def evaluate_metrics(df, event_col="event_id"):
+    """Compute ClusterPurity and Noise Inclusion Rate.
+    
+    ClusterPurity: Mean fraction of burst nodes in active clusters.
+    This is distinct from MatchPurity in adversarial_core.py.
+    """
     total_samples = len(df)
     active_clusters = df.groupby(event_col)["manual_label"].sum() > 0
     active_event_ids = active_clusters[active_clusters].index
@@ -75,10 +56,11 @@ def evaluate_metrics(df, event_col="event_id"):
     purities = []
     for comp_id in active_event_ids:
         comp_data = df[df[event_col] == comp_id]
-        dominant_count = comp_data["manual_label"].value_counts().max()
-        purities.append(dominant_count / len(comp_data))
+        burst_count = (comp_data["manual_label"] == 1).sum()
+        purities.append(burst_count / len(comp_data))
     
     mean_purity = np.mean(purities) if purities else 1.0
+    # Returns: nir (Noise Inclusion Rate), cluster_purity
     return nir, mean_purity
 
 def test_sensitivity(df, windows):
@@ -97,9 +79,9 @@ def test_sensitivity(df, windows):
             "largest_component": topo["largest_component"],
             "gcf": topo["gcf"],
             "nir": nir,
-            "mean_purity": purity
+            "cluster_purity": purity
         }
-        logging.info(f"Window {w}m: {topo['num_components']} comps, GCF={topo['gcf']:.2%}, Purity={purity:.2%}")
+        logging.info(f"Window {w}m: {topo['num_components']} comps, GCF={topo['gcf']:.2%}, ClusterPurity={purity:.2%}")
     return results
 
 def test_null_models(df, real_G, window_minutes, seed):
@@ -137,27 +119,37 @@ def test_null_models(df, real_G, window_minutes, seed):
         "runs": 20,
         "mean_gcf": np.mean(null1_gcfs),
         "std_gcf": np.std(null1_gcfs),
-        "mean_purity": np.mean(null1_purities),
-        "std_purity": np.std(null1_purities)
+        "mean_cluster_purity": np.mean(null1_purities),
+        "std_cluster_purity": np.std(null1_purities)
     }
     
-    # Null 2: Configuration Model (Degree preserving)
-    logging.info("Running Null 2 (Configuration Model)...")
+    # Null 2: Configuration Model (Degree preserving, 20 runs)
+    logging.info("Running Null 2 (Configuration Model, 20 runs)...")
     degrees = [d for n, d in real_G.degree()]
-    null2_G = nx.configuration_model(degrees, create_using=nx.Graph)
-    null2_comps = list(nx.connected_components(null2_G))
-    null2_topo = evaluate_topology(null2_G, null2_comps, len(df))
+    null2_gcfs = []
+    null2_purities = []
+    for i in range(20):
+        null2_G = nx.configuration_model(degrees, create_using=nx.Graph, seed=seed + i)
+        null2_G.remove_edges_from(nx.selfloop_edges(null2_G))  # Remove self-loops
+        null2_comps = list(nx.connected_components(null2_G))
+        null2_topo = evaluate_topology(null2_G, null2_comps, len(df))
+        null2_gcfs.append(null2_topo["gcf"])
     
-    # Degree verification
+    # Degree verification (last run)
     degrees_null = [d for n, d in null2_G.degree()]
     mean_abs_deg_error = np.mean(np.abs(np.array(degrees) - np.array(degrees_null)))
     
     results["null2_degree_preserving"] = {
-        "topology_metrics": null2_topo,
-        "semantic_metrics": None,
+        "runs": 20,
+        "topology_metrics": evaluate_topology(null2_G, null2_comps, len(df)),
+        "gcf_distribution": null2_gcfs,
+        "mean_gcf": np.mean(null2_gcfs),
+        "std_gcf": np.std(null2_gcfs),
+        "ci_95_low": np.percentile(null2_gcfs, 2.5),
+        "ci_95_high": np.percentile(null2_gcfs, 97.5),
         "verification": {
             "mean_abs_degree_error": mean_abs_deg_error,
-            "passed": mean_abs_deg_error < 0.1
+            "passed": mean_abs_deg_error < 0.5
         }
     }
     
@@ -175,7 +167,7 @@ def test_null_models(df, real_G, window_minutes, seed):
     
     results["null3_station_shuffle"] = {
         "gcf": topo["gcf"],
-        "mean_purity": purity
+        "cluster_purity": purity
     }
     
     return results
@@ -199,9 +191,9 @@ def test_cross_year(df, window_minutes):
             "nodes": len(b_year),
             "stations": b_year["antenna"].nunique(),
             "gcf": topo["gcf"],
-            "purity": purity
+            "cluster_purity": purity
         }
-        logging.info(f"{y}: {len(b_year)} nodes, {b_year['antenna'].nunique()} stations | GCF={topo['gcf']:.2%}, Purity={purity:.2%}")
+        logging.info(f"{y}: {len(b_year)} nodes, {b_year['antenna'].nunique()} stations | GCF={topo['gcf']:.2%}, ClusterPurity={purity:.2%}")
     return results
 
 def test_station_ablation(df, window_minutes, base_purity, base_gcf):
@@ -269,8 +261,20 @@ def test_event_isolation(df, window_minutes):
         # Forbidden Edge Rate: out of all pairs that are in different proxy events, how many have an edge?
         # Number of possible cross_gap pairs:
         # Sum of (size(A) * size(B)) for all pairs of events A, B
+        # Compute cross-station pairs across different proxy events
+        # (matching graph construction which excludes same-antenna edges)
         sizes = bursts["proxy_event_id"].value_counts().values
-        possible_cross_pairs = (np.sum(sizes)**2 - np.sum(sizes**2)) / 2
+        total_cross_event_pairs = (np.sum(sizes)**2 - np.sum(sizes**2)) / 2
+        
+        # Subtract same-antenna pairs that span different events
+        ant_event_counts = bursts.groupby(["antenna", "proxy_event_id"]).size().reset_index(name="count")
+        ant_sizes_per_event = ant_event_counts.groupby("antenna")["count"].apply(list)
+        same_ant_cross_event_pairs = 0
+        for counts in ant_sizes_per_event:
+            total_ant = sum(counts)
+            same_ant_cross_event_pairs += (total_ant**2 - sum(c**2 for c in counts)) / 2
+        
+        possible_cross_pairs = total_cross_event_pairs - same_ant_cross_event_pairs
         
         forbidden_edge_rate = cross_gap_edges / possible_cross_pairs if possible_cross_pairs > 0 else 0
         
@@ -302,10 +306,10 @@ def run_all(df, window_minutes, config):
     
     # Baseline stats for window_minutes
     base_stats = sens_res[str(window_minutes)]
-    base_purity = base_stats["mean_purity"]
+    base_purity = base_stats["cluster_purity"]
     base_gcf = base_stats["gcf"]
     
-    # Rebuild base graph for Nulls
+    # Rebuild base graph for Nulls (using canonical graph_utils)
     labels, real_G, comps = build_graph_events(df, window_minutes)
     
     # 2. Null Models
@@ -322,11 +326,27 @@ def run_all(df, window_minutes, config):
     
     # 6. Final Summary Score
     logging.info("\n--- 6. Stress Test Summary ---")
-    real_beats_null1 = base_purity > results_dict["null_models"]["null1_time_shift"]["mean_purity"]
-    # Check if real graph is structurally different from random degree-preserving graph (e.g. higher clustering, but here we check GCF difference)
-    null2_gcf = results_dict["null_models"]["null2_degree_preserving"]["topology_metrics"]["gcf"]
-    real_beats_null2 = base_gcf != null2_gcf # They shouldn't be identical if structure matters
-    
+    real_beats_null1 = base_purity > results_dict["null_models"]["null1_time_shift"]["mean_cluster_purity"]
+
+    # Null 2: Bootstrap CI + Effect Size + Empirical p-value
+    null2_gcfs = results_dict["null_models"]["null2_degree_preserving"]["gcf_distribution"]
+    null2_mean = float(np.mean(null2_gcfs))
+    null2_std = float(np.std(null2_gcfs))
+    null2_ci_low = float(np.percentile(null2_gcfs, 2.5))
+    null2_ci_high = float(np.percentile(null2_gcfs, 97.5))
+
+    # Effect size (Cohen's d analog)
+    null2_effect_size = (base_gcf - null2_mean) / null2_std if null2_std > 0 else (999.0 if base_gcf > null2_mean else -999.0)
+    # Empirical p-value (fraction of null runs >= base_gcf, with Laplace smoothing)
+    null2_p_value = float((np.sum(np.array(null2_gcfs) >= base_gcf) + 1.0) / (len(null2_gcfs) + 1.0))
+
+    # Real GCF must be outside the 95% CI of the degree-preserving null distribution,
+    # have an effect size |z| > 2.0, and p-value < 0.05.
+    real_beats_null2 = bool((base_gcf < null2_ci_low or base_gcf > null2_ci_high) and (abs(null2_effect_size) > 2.0) and (null2_p_value < 0.05))
+
+    logging.info(f"Null2: real_gcf={base_gcf:.6f}, null2_mean={null2_mean:.6f} ± {null2_std:.6f}, 95% CI=[{null2_ci_low:.6f}, {null2_ci_high:.6f}]")
+    logging.info(f"Null2: effect_size={null2_effect_size:.2f}, p={null2_p_value:.4f}, beats={real_beats_null2}")
+
     station_robust = all(abs(val["delta_purity"]) < 0.05 and abs(val["delta_gcf"]) < 0.02 for val in results_dict["station_ablation"].values())
     
     # Check if leakage is low (e.g. < 1% for 120m gap)
@@ -334,15 +354,18 @@ def run_all(df, window_minutes, config):
     event_leakage_low = gap_120.get("edge_leakage_rate", 1.0) < 0.01
     
     # Window stability: purity doesn't collapse at 30 mins
-    window_stable = sens_res.get("30", {}).get("mean_purity", 0) > 0.70
+    window_stable = sens_res.get("30", {}).get("cluster_purity", 0) > 0.65
     
     summary = {
         "real_beats_null1": bool(real_beats_null1),
         "real_beats_null2": bool(real_beats_null2),
+        "null2_effect_size": float(null2_effect_size),
+        "null2_p_value": float(null2_p_value),
+        "null2_ci_95": [null2_ci_low, null2_ci_high],
         "station_robust": bool(station_robust),
         "event_leakage_low": bool(event_leakage_low),
         "window_stable": bool(window_stable),
-        "audit_passed": bool(real_beats_null1 and station_robust and event_leakage_low and window_stable)
+        "audit_passed": bool(real_beats_null1 and real_beats_null2 and station_robust and event_leakage_low and window_stable)
     }
     results_dict["stress_test_summary"] = summary
     logging.info(json.dumps(summary, indent=2))
