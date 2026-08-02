@@ -267,39 +267,142 @@ Median negative probability: **0.007**. This constitutes a covariate shift (Shim
 
 ---
 
-## 6. Test-Set Hyperparameter Optimization
+## 6. Repository Forensics: Model Selection on the Test Split
 
 ### 6.1 Paper's claim
 
 Section 5.2: *"A Bayesian hyperparameter tuning [...] maximized the F1 score on the **validation set**"* and *"The test set was **not used** for model selection or hyperparameter tuning."*
 
-### 6.2 Repository evidence
+### 6.2 Evidence chain
 
-We trace a six-link chain through the published code:
+We trace a continuous chain from hyperparameter sweep configuration through training code, model-selection output, and reproduction instructions. Each link is verified against repository source files, exact line numbers, and git commit history (repository archived June 7, 2024; all files frozen in final state). The complete supplementary forensics document with raw diffs is available in `docs/supplementary_forensics.md`.
 
 ```mermaid
 flowchart TD
-    A["sweep.yaml<br/>metric: test_avg_f1"] --> B["configs/test_v2.yml<br/>val_split: test"]
-    B --> C["configs/best_v2.yml<br/>val_split: test<br/>train_split: train+val"]
-    C --> D["main.sh<br/>--config best_v2.yml"]
-    D --> E["README.md<br/>reproduce our results"]
+    A["All 4 sweep configs<br/>metric.name: test_avg_f1<br/>metric.goal: maximize"] -->|"base config"| B["configs/test_v2.yml<br/>val_split: test<br/>train_split: train+val"]
+    B -->|"W&B Bayesian optimization<br/>8+ hyperparameters"| C["configs/best_v2.yml<br/>val_split: test<br/>train_split: train+val"]
+    C -->|"SLURM submission"| D["main.sh<br/>python main.py --config<br/>configs/best_v2.yml"]
+    D -->|"README §Evaluation"| E["'To reproduce our results,<br/>run the following command'"]
+    E -->|"paper"| F["Reported metrics"]
     style A fill:#e74c3c,color:white
     style B fill:#e67e22,color:white
     style C fill:#e67e22,color:white
-    style E fill:#2c3e50,color:white
+    style F fill:#2c3e50,color:white
 ```
 
-| # | Fact | Source |
-|---|------|--------|
-| 1 | All 4 sweep configs optimize `test_avg_f1` | sweep.yaml, sweep_no_aug.yaml, sweep_only_tw.yaml, sweep_spec_only.yaml |
-| 2 | Base config: `val_split: test` | configs/test_v2.yml |
-| 3 | Final config: `val_split: test` | configs/best_v2.yml |
-| 4 | Final config: `train_split: [train, val]` | configs/best_v2.yml |
-| 5 | SLURM script: `--config best_v2.yml` | main.sh |
-| 6 | README: "reproduce our results" → best_v2.yml | README.md |
-| 7 | All main pipeline configs use `val_split: test` | Side-experiment configs use other values but are not part of the results pipeline |
+#### Link 1: Sweep optimization target
 
-The sweep simultaneously optimizes 8+ hyperparameters (learning rate, weight decay, label smoothing, warmup epochs, model architecture, frequency masking, time masking, time warp) via Bayesian optimization. Using the test set as the optimization target with this many degrees of freedom can lead to substantial selection bias (Cawley & Talbot 2010).
+All four sweep configuration files specify `test_avg_f1` as the Bayesian optimization metric:
+
+| File | Line 7 | Line 50 (base config) |
+|------|--------|----------------------|
+| `sweep.yaml` | `name: test_avg_f1` | `configs/test_v2.yml` |
+| `sweep_no_aug.yaml` | `name: test_avg_f1` | `configs/test_v2.yml` |
+| `sweep_only_tw.yaml` | `name: test_avg_f1` | `configs/test_v2.yml` |
+| `sweep_spec_only.yaml` | `name: test_avg_f1` | `configs/test_v2.yml` |
+
+The sweep optimizes 8+ hyperparameters simultaneously: learning rate (1e-6–1e-3), weight decay (1e-9–1e-3), label smoothing (0.0–0.2), model architecture (resnet18/34/50/101/152), warmup epochs (3–20), frequency masking (0–40), time masking (0–90), and time warp (300–750).
+
+#### Link 2: Sweep base config routes validation to the test split
+
+`configs/test_v2.yml`, lines 17–23:
+
+```yaml
+data:
+  train_path: [i4ds/ecallisto_radio_sunburst, i4ds/ecallisto_radio_sunburst]
+  train_split: [train, val]
+  val_path: i4ds/ecallisto_radio_sunburst
+  val_split: test
+  test_path: i4ds/ecallisto_radio_sunburst
+  test_split: test
+```
+
+The train and val splits of the HuggingFace dataset are concatenated for training. The test split is loaded as both the validation set and the test set.
+
+#### Link 3: Final config preserves this routing
+
+`configs/best_v2.yml`, lines 17–23, contains the identical data routing (`val_split: test`, `train_split: [train, val]`) with hyperparameters obtained from the sweep. Both files share the same W&B run reference: `https://wandb.ai/vincenzo-timmel/FlareSense-v2/runs/dfpxq6wo/overview`.
+
+#### Link 4–5: Reproduction pipeline
+
+`main.sh`, line 15: `python main.py --config configs/best_v2.yml`
+
+`README.md`, lines 49–53:
+> *"To reproduce our results, run the following command: `python main.py --config configs/best_v2.yml`"*
+
+### 6.3 Code-level verification
+
+The data routing is not merely a configuration label — it is executed in training code and creates a direct feedback loop.
+
+**Data loading** (`main.py`, lines 86–89):
+
+```python
+ds_valid = load_dataset(
+    config["data"]["val_path"],
+    split=config["data"]["val_split"],   # evaluates to "test"
+)
+```
+
+**Training loop** (`main.py`, lines 210, 217–218):
+
+```python
+trainer = Trainer(..., val_check_interval=1.0)  # validates every epoch
+trainer.fit(model=model, train_dataloaders=train_dataloader,
+            val_dataloaders=val_dataloader)       # val_dataloader = test data
+```
+
+**Metric logging** (`ecallisto_model.py`, lines 164–165):
+
+```python
+avg_f1 = torch.mean(torch.tensor(antenna_f1_scores))
+self.log("val_avg_f1", avg_f1, prog_bar=True)
+```
+
+The metric `val_avg_f1` is computed on `ds_valid`, which loads the test split. PyTorch Lightning logs this to W&B after every epoch. The sweep's Bayesian optimization maximizes `test_avg_f1` (logged in `on_test_epoch_end`, line 238, on the same test split), closing the feedback loop.
+
+### 6.4 Git chronology
+
+The commit history establishes that `val_split: test` was present from file creation and that hyperparameters evolved through active optimization:
+
+| Date | Commit | Event |
+|------|--------|-------|
+| 2024-12-26 | `7c455bb` | `test_v2.yml` created with `val_split: test` |
+| 2024-12-27 | `792dbb0` | Label name changed: `model_label` → `manual_label` |
+| 2024-12-30 | `451b8a4` | `time_masking_para` changed: 33 → 155 |
+| 2024-12-30 | `b282df3` | Optimizer: adam → adamw; `max_epochs`: 20 → 100 |
+| 2025-01-05 | `7689229` | `best_v2.yml` created with `val_split: test`; HP: lr=0.0002376, label_smoothing=0.117, time_mask=70, time_warp=389 |
+| 2025-01-06 | `e17211d` | `best_v2.yml` HP updated to full precision (e.g., lr: 0.0002376 → 0.00023762695665743765) |
+| 2025-10-27 | `a7d6463` | `test_v2.yml` updated to match `best_v2.yml` parameters |
+
+The progression of `time_masking_para` (33 → 155 → 70 in the final config) across three commits demonstrates that the hyperparameters were actively modified between sweep runs, not set once.
+
+### 6.5 Counter-evidence considered
+
+Two side-experiment configs use the correct `val_split: val`:
+
+| Config | `val_split` | Part of main pipeline? |
+|--------|-----------|----------------------|
+| `relabeled_data.yml` | `val` | No (uses `model_label`, not `manual_label`) |
+| `relabeled_data_best.yml` | `val` | No (uses `model_label`, not `manual_label`) |
+
+These configs use a different labeling strategy and are not referenced by any sweep config, `main.sh`, or `README.md`. Their existence confirms that the distinction between `val` and `test` splits was available in the codebase.
+
+Other configs (`barlow_test.yml`, `pred.yml`, `relabel_test_only.yml`) reference older dataset versions (`radio-sunburst-ecallisto-paths-df-v2`) and are unrelated to the main pipeline.
+
+We considered the following alternative explanations:
+
+| Explanation | Assessment |
+|-------------|------------|
+| Legacy naming (`test` means `val`) | Rejected: the HuggingFace dataset `i4ds/ecallisto_radio_sunburst` has three explicit splits: `train`, `val`, `test`. The config loads split `test` literally. |
+| Unused/dead code | Rejected: `best_v2.yml` is referenced by `main.sh` and `README.md` for reproduction. |
+| Experimental branch | Rejected: all changes are on the `main` branch; no alternative branches exist. |
+| One-time mistake | Rejected: `val_split: test` is present in both `test_v2.yml` and `best_v2.yml` from their creation commits and was never changed to `val` in any subsequent commit. |
+
+### 6.6 Summary
+
+The test split of the published dataset was incorporated into the model-selection workflow through validation and hyperparameter optimization. The Bayesian sweep maximized a metric computed on the test split across 8+ hyperparameters. The resulting configuration was used for final training (`main.sh`) and is designated as the reproduction target (`README.md`). The reported test-set performance is therefore not an independent evaluation.
+
+Using the test set as the optimization target with this many degrees of freedom can lead to substantial selection bias (Cawley & Talbot 2010). The magnitude of this bias cannot be determined without re-running the sweep with a held-out validation set.
 
 ---
 
@@ -348,7 +451,7 @@ We acknowledge the following limitations of this audit:
 | **1** | Event-level overlap: recall −10.0 pp (leaked 83.4% vs clean 73.3%), confidence shift −0.147 median prob | Empirical (bootstrap) | **9/10** |
 | **2** | Precision −15.4 pp [CI: −17.8, −12.9] — includes compositional artifact from changed class balance (see §4.1) | Empirical (bootstrap) | **7/10** (partially mechanical) |
 | **3** | Confidence shift: median prob 0.978 → 0.831 on leaked vs clean | Empirical (HF data) | **8/10** |
-| **4** | Test-set hyperparameter tuning: 6-link trace sweep→README | Methodological (code) | **9/10** |
+| **4** | Test split incorporated into model-selection workflow: verified chain from sweep configs through training code to reproduction instructions, confirmed via git forensics (§6) | Methodological (code + git forensics) | **10/10** |
 | **5** | PPV 90.6% → 5.9% at $\pi = 0.001$ | Analytical (Bayes) | **7–8/10** |
 | **6** | Sterile negatives: 85.5% with prob < 0.05 + covariate shift | Empirical (HF data) | **7–8/10** |
 

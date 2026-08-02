@@ -1,0 +1,188 @@
+{
+  "metadata": {
+    "total_samples": 30549,
+    "window_minutes_base": 15
+  },
+  "sensitivity_analysis": {
+    "window_minutes": {
+      "5": {
+        "num_components": 27256,
+        "largest_component": 6,
+        "gcf": 0.0001964057743297653,
+        "nir": 0.015810664833546106,
+        "mean_purity": 0.943220753793441
+      },
+      "10": {
+        "num_components": 24599,
+        "largest_component": 7,
+        "gcf": 0.00022914007005139285,
+        "nir": 0.03175226684997872,
+        "mean_purity": 0.9010600629480678
+      },
+      "15": {
+        "num_components": 22193,
+        "largest_component": 8,
+        "gcf": 0.00026187436577302037,
+        "nir": 0.04965792660970899,
+        "mean_purity": 0.8709737017815412
+      },
+      "20": {
+        "num_components": 20097,
+        "largest_component": 12,
+        "gcf": 0.0003928115486595306,
+        "nir": 0.07479786572391894,
+        "mean_purity": 0.8428740290442418
+      },
+      "30": {
+        "num_components": 16477,
+        "largest_component": 22,
+        "gcf": 0.0007201545058758061,
+        "nir": 0.12848211070738813,
+        "mean_purity": 0.8070933531550897
+      },
+      "45": {
+        "num_components": 12485,
+        "largest_component": 29,
+        "gcf": 0.0009492945759271989,
+        "nir": 0.20612786015908868,
+        "mean_purity": 0.7874697497778232
+      },
+      "60": {
+        "num_components": 9582,
+        "largest_component": 38,
+        "gcf": 0.001243903237421847,
+        "nir": 0.2817113489803267,
+        "mean_purity": 0.7825554364017328
+      }
+    }
+  },
+  "null_models": {
+    "null1_time_shift": {
+      "runs": 20,
+      "mean_gcf": 0.0002766047988477528,
+      "std_gcf": 2.6340431666226522e-05,
+      "mean_purity": 0.8534440413324059,
+      "std_purity": 0.0034511319696245153
+    },
+    "null2_degree_preserving": {
+      "topology_metrics": {
+        "num_components": 20407,
+        "largest_component": 104,
+        "gcf": 0.003404366755049265
+      },
+      "semantic_metrics": null,
+      "verification": {
+        "mean_abs_degree_error": 0.0,
+        "passed": true
+      }
+    },
+    "null3_station_shuffle": {
+      "gcf": 0.00026187436577302037,
+      "mean_purity": 0.8328311298812584
+    }
+  },
+  "cross_year": {
+    "2021": {
+      "nodes": 4190,
+      "stations": 17,
+      "gcf": 0.0011933174224343676,
+      "purity": 0.9249654218533887
+    },
+    "2022": {
+      "nodes": 10098,
+      "stations": 24,
+      "gcf": 0.0006932065755595167,
+      "purity": 0.8679758076864186
+    },
+    "2023": {
+      "nodes": 12051,
+      "stations": 24,
+      "gcf": 0.0006638453240394988,
+      "purity": 0.8663500597371565
+    },
+    "2024": {
+      "nodes": 4210,
+      "stations": 24,
+      "gcf": 0.00166270783847981,
+      "purity": 0.864356849945602
+    }
+  },
+  "station_ablation": {
+    "ALASKA-HAARP_62": {
+      "group": "Top-5",
+      "delta_purity": 0.0010092761735153166,
+      "delta_gcf": 2.121126763108438e-05
+    },
+    "ALMATY_58": {
+      "group": "Random",
+      "delta_purity": 0.0030811345999639528,
+      "delta_gcf": 6.771324142692051e-06
+    },
+    "INDIA-GAURI_01": {
+      "group": "Random",
+      "delta_purity": 0.0033671121162347495,
+      "delta_gcf": 5.487441592797414e-06
+    },
+    "HUMAIN_59": {
+      "group": "Top-5",
+      "delta_purity": 0.004700370522965791,
+      "delta_gcf": 2.2357851948858387e-05
+    },
+    "GLASGOW_01": {
+      "group": "Top-5",
+      "delta_purity": 0.007670554964219312,
+      "delta_gcf": 1.843397340007001e-05
+    },
+    "MEXICO-LANCE-B_62": {
+      "group": "Random",
+      "delta_purity": 0.0009700933816957358,
+      "delta_gcf": 1.908277329063532e-06
+    },
+    "KASI_59": {
+      "group": "Random",
+      "delta_purity": 0.0013819391619960264,
+      "delta_gcf": 2.0388067932053193e-06
+    },
+    "ALASKA-COHOE_63": {
+      "group": "Top-5",
+      "delta_purity": 0.0016050390171039597,
+      "delta_gcf": 1.8925915027260436e-05
+    },
+    "SSRT_59": {
+      "group": "Random",
+      "delta_purity": 0.003379139649052454,
+      "delta_gcf": 8.880702423412414e-06
+    },
+    "Australia-ASSA_62": {
+      "group": "Top-5",
+      "delta_purity": 0.0035968146123168676,
+      "delta_gcf": 2.2509410132564233e-05
+    }
+  },
+  "event_isolation": {
+    "gap_30m": {
+      "edge_leakage_rate": 0.0,
+      "forbidden_edge_rate": 0.0
+    },
+    "gap_60m": {
+      "edge_leakage_rate": 0.0,
+      "forbidden_edge_rate": 0.0
+    },
+    "gap_120m": {
+      "edge_leakage_rate": 0.0,
+      "forbidden_edge_rate": 0.0
+    },
+    "gap_240m": {
+      "edge_leakage_rate": 0.0,
+      "forbidden_edge_rate": 0.0
+    }
+  },
+  "stress_test_summary": {
+    "real_beats_null1": true,
+    "real_beats_null2": true,
+    "station_robust": true,
+    "event_leakage_low": true,
+    "window_stable": true,
+    "audit_passed": true
+  }
+}
