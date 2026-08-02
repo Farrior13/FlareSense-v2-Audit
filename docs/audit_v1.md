@@ -190,7 +190,7 @@ The most direct evidence of event-specific calibration comes from comparing mode
 | **P25** | 0.768 | 0.467 | −0.301 |
 | **Recall (≥0.5)** | 83.4% | 73.3% | **−10.0 pp** |
 
-The model assigns substantially higher burst probabilities to samples whose physical event was seen during training (via other stations). This is consistent with event-specific memorization rather than pure physics-based generalization: the model calibrates its confidence by recognizing familiar event morphology and over-estimates $P(\text{burst} \mid x)$ for samples resembling training events.
+The model assigns substantially higher burst probabilities to samples whose physical event was seen during training (via other stations). This is consistent with event-dependent behavior rather than pure physics-based generalization: the model calibrates its confidence by recognizing familiar event morphology and produces optimistic probability estimates for samples whose underlying event was represented in training.
 
 ![Model confidence: leaked vs clean burst samples](../figures/fig5_leaked_vs_clean_prob.png)
 
@@ -428,7 +428,7 @@ The paper advocates deployment for "near-real-time space-weather applications" (
 
 ## 8. Physical Impact of Event Leakage
 
-The preceding sections establish that event-level leakage inflates test-set recall by approximately 10 pp. This section asks a more specific question: **what types of physical events does the model lose the ability to recognize after removing leakage?**
+The preceding sections establish that event-level leakage inflates test-set recall by approximately 10 pp. This section asks a more specific question: **what type of information did event-level leakage provide to the model, and which operating regimes did it conceal?**
 
 ### 8.1 Structural composition of leaked vs clean subsets
 
@@ -445,6 +445,8 @@ The leaked and clean burst subsets are not random samples from the same distribu
 
 94.5% of clean burst samples (1,332 of 1,409) are single-station events — weak or localized activity observed by only one instrument. All multi-station events (4+ stations) appear in both the training and test sets and are therefore classified as leaked. This reflects the physical reality that large, energetic solar radio bursts are visible to many instruments simultaneously, while small or localized events are observed by individual stations.
 
+Consequently, the leakage removal procedure does not merely remove random duplicates — it removes cross-station event redundancy. The random split used in the paper primarily evaluates whether the model can recognize an event when other observations of the **same physical event** were present in training, rather than whether it can detect a genuinely new solar burst.
+
 ### 8.2 Training exposure gradient
 
 Recall increases monotonically with the number of training stations that observed the same physical event:
@@ -457,7 +459,7 @@ Recall increases monotonically with the number of training stations that observe
 | 6–10 | 996 | 85.1% | 0.824 | 0.978 |
 | 11+ | 381 | 85.8% | 0.851 | 0.990 |
 
-The 12.5 pp recall gap between clean events and events with maximal training exposure is directly linked to the volume of related training data rather than to event brightness alone.
+The 12.5 pp recall gap between clean events and events with maximal training exposure is difficult to explain by event brightness alone. Event brightness is an intrinsic property of the solar event itself; training exposure is a property of the data split. The monotonic relationship between training exposure and recall indicates that the model exploits event-level redundancy available under random splitting. This does not necessarily imply memorization; rather, the model benefits from correlated observations of the same underlying phenomenon.
 
 ### 8.3 Degradation by event duration
 
@@ -506,7 +508,7 @@ The confidence gap is largest at P25 (+0.301), indicating that leakage dispropor
 
 ### 8.7 Summary
 
-Leakage removal disproportionately degrades detection of:
+Leakage does not inflate performance uniformly. Removal disproportionately degrades detection in the most challenging operating regimes:
 
 1. **Weak/localized events** — single-station bursts, comprising 94.5% of the clean subset.
 2. **Extended events** (1–15 min duration): +17.6 pp gap vs +8.0 pp for instantaneous.
@@ -514,9 +516,9 @@ Leakage removal disproportionately degrades detection of:
 4. **Peak-overlap hours** (06–12 UTC): +13.3 pp gap during European daytime.
 5. **Borderline detections** — 52.5% of low-confidence (0.3–0.5) predictions are clean.
 
-These are precisely the cases most relevant to the paper's deployment claim for "near-real-time space-weather applications." The model does not merely lose 10 pp of recall uniformly — it loses the ability to reliably detect weak, isolated, and temporally complex solar activity.
+The observed degradation indicates that random splitting allowed exploitation of event-level redundancy, which contributed substantially to reported performance. The model does not merely lose 10 pp of recall uniformly — it loses the ability to reliably detect weak, isolated, and temporally complex solar activity, precisely the cases most relevant to the paper's deployment claim for "near-real-time space-weather applications."
 
-We note the confound discussed in §9.5: leaked events are intrinsically brighter and may be easier to detect independent of memorization. The training exposure gradient (§8.2) provides partial evidence against this explanation, as recall increases with training station count even within the same physical event. However, definitive separation of intrinsic difficulty from memorization requires retraining with event-grouped splits.
+We do not claim that the model "memorized" specific events. A CNN can legitimately learn burst morphology, frequency drift, duration, and intensity features. However, random splitting allowed the model to see near-identical spectrograms of the same physical event from different stations during training and evaluation. The training exposure gradient (§8.2) — where recall increases monotonically with the number of training stations per event — provides the strongest evidence that performance is partially driven by cross-station event redundancy rather than intrinsic generalization. Definitive separation requires retraining with event-grouped splits.
 
 ---
 
@@ -524,15 +526,15 @@ We note the confound discussed in §9.5: leaked events are intrinsically brighte
 
 We acknowledge the following limitations of this audit:
 
-1. **No retraining.** All analysis uses the published model's pre-computed predictions. We evaluate a fixed model on different subsets of the test set, which does not fully separate the effects of event memorization from intrinsic sample difficulty. An event-grouped leave-one-out (EG-LOSO) retraining protocol is required to definitively quantify generalization.
+1. **No retraining.** All analysis uses the published model's pre-computed predictions. We evaluate a fixed model on different subsets of the test set, which does not fully separate the effects of event-level redundancy from intrinsic sample difficulty. An event-grouped leave-one-out (EG-LOSO) retraining protocol is required to definitively quantify generalization.
 
 2. **Binary labels only.** The published dataset contains only binary labels (burst vs non-burst), preventing per-type analysis (Type II vs Type III vs Type IV).
 
 3. **Event grouping is approximate.** Without an authoritative solar event catalog crossmatched to the dataset, we use time-based bucketing as a proxy for physical event identity. True event IDs would provide a more precise overlap estimate.
 
-4. **Confidence shift interpretation.** The observed confidence difference between leaked and clean bursts (§4.2) is consistent with event memorization but could partly reflect differences in signal quality between events.
+4. **Confidence shift interpretation.** The observed confidence difference between leaked and clean bursts (§4.2) is consistent with event-dependent behavior but could partly reflect differences in signal quality between events.
 
-5. **Brightness/intensity confound.** "Leaked" events are those recorded by many stations simultaneously — i.e. large, bright, and energetic events that are inherently easier to detect. "Clean" events are predominantly single-station observations of weaker activity. Part of the performance gap between leaked and clean subsets may therefore reflect differences in intrinsic event difficulty rather than memorization. A definitive separation requires retraining with event-grouped splits (EG-LOSO), which is planned for the next version of this audit.
+5. **Brightness/intensity confound.** "Leaked" events are those recorded by many stations simultaneously — i.e. large, bright, and energetic events that are inherently easier to detect. "Clean" events are predominantly single-station observations of weaker activity. Part of the performance gap between leaked and clean subsets may therefore reflect differences in intrinsic event difficulty rather than event-level redundancy. A definitive separation requires retraining with event-grouped splits (EG-LOSO), which is planned for the next version of this audit.
 
 ---
 
@@ -548,7 +550,7 @@ We acknowledge the following limitations of this audit:
 | **4** | Test split incorporated into model-selection workflow: verified chain from sweep configs through training code to reproduction instructions, confirmed via git forensics (§6) | Methodological (code + git forensics) | **10/10** |
 | **5** | PPV 90.6% → 5.9% at $\pi = 0.001$ | Analytical (Bayes) | **7–8/10** |
 | **6** | Sterile negatives: 85.5% with prob < 0.05 + covariate shift | Empirical (HF data) | **7–8/10** |
-| **7** | Leakage removal disproportionately degrades weak/localized events (94.5% of clean = single-station), extended bursts (+17.6 pp gap), and geographically isolated stations (Alaska: +14 pp) (§8) | Empirical (HF data) | **8/10** |
+| **7** | Random splitting allowed exploitation of event-level redundancy; removal selectively degrades weak/localized events (94.5% clean = single-station), extended bursts (+17.6 pp), and isolated stations (Alaska: +14 pp); training exposure gradient confirms dependence on cross-station overlap (§8) | Empirical (HF data) | **8–9/10** |
 
 We do not claim that the FlareSense-v2 model "does not work." Even after removing event-level overlap, the model achieves a clean-test F1 of 74.3% — a non-trivial result for automated burst detection. However, the published metrics substantially overestimate the model's generalization performance.
 
@@ -562,7 +564,7 @@ The most robust evidence of event-dependent behavior is the **recall gap** (−1
 
 ### Next step: EG-LOSO
 
-The next validation stage is event-grouped leave-one-solar-event-out (EG-LOSO) retraining, which would definitively separate event memorization from true physical generalization. This is planned as v2 of this audit.
+The next validation stage is event-grouped leave-one-solar-event-out (EG-LOSO) retraining, which would definitively separate event-level redundancy effects from true physical generalization. This is planned as v2 of this audit.
 
 ---
 
