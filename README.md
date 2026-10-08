@@ -107,6 +107,21 @@ All publication figures and the complete LaTeX submission package are available 
 
 ---
 
+## Citation
+
+```bibtex
+@article{filosofov2026flaresense,
+  title   = {Independent Evaluation Audit of {FlareSense}-v2:
+             Multi-Station Event Leakage, Asymmetric Label Protocols,
+             and Methodological Forensics in Solar Radio Burst Classification},
+  author  = {Filosofov, M.},
+  year    = {2026},
+  url     = {https://github.com/Farrior13/FlareSense-v2-Audit}
+}
+```
+
+---
+
 ## License
 
 This replication package is licensed under the [MIT License](LICENSE).

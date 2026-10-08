@@ -21,8 +21,9 @@
 \title{\textbf{Independent Evaluation Audit of FlareSense-v2:\\Multi-Station Event Leakage, Asymmetric Label Protocols,\\and Methodological Forensics in Solar Radio Burst Classification}}
 
 \author{
-  \textbf{FlareSense-v2 Independent Audit Team}\\
-  \texttt{https://github.com/FlareSense-v2-Audit}
+  \textbf{M.~Filosofov}\\
+  \texttt{mihailfilosofov940@gmail.com}\\
+  \url{https://github.com/Farrior13/FlareSense-v2-Audit}
 }
 \date{October 2026}
 
@@ -237,6 +238,9 @@ Based on our empirical findings, we offer four recommendations for machine learn
 \section{Conclusion}
 
 Our independent evaluation audit confirms that multi-station temporal event leakage in \textsc{FlareSense-v2} is a genuine, measurable phenomenon, but its causal contribution to the observed 45.28~pp recall deficit is modest (0 to 6~pp depending on operating threshold). The vast majority of the deficit is driven by an asymmetric annotation protocol combined with intrinsic burst size and visibility. Once annotation scope is harmonized, the convolutional architecture retains high physical detection capability ($\text{AUROC} > 0.977$). However, deployment requires resolving background calibration distribution shifts and addressing operational base-rate sensitivity through multi-station coincidence verification.
+
+\section*{Data and Code Availability}
+The full replication codebase, statistical evaluation scripts, and precomputed results supporting this audit are publicly available under the MIT license at \url{https://github.com/Farrior13/FlareSense-v2-Audit} (release tag \texttt{v1.0.0}). The e-CALLISTO radio spectrometer data and official burst catalog are openly distributed by the international e-CALLISTO network at \url{https://www.e-callisto.org/}.
 
 \bibliographystyle{plain}
 \bibliography{references}
