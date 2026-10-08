@@ -85,9 +85,9 @@ def main(output_dir: str):
     
     columns = ["manual_label", "prob", "model_label", "start_datetime", "antenna"]
     
-    train_df = ds["train"].to_pandas()[columns]
-    val_df = ds["val"].to_pandas()[columns]
-    test_df = ds["test"].to_pandas()[columns]
+    train_df = ds["train"].select_columns(columns).to_pandas()
+    val_df = ds["val"].select_columns(columns).to_pandas()
+    test_df = ds["test"].select_columns(columns).to_pandas()
     
     # 3a. Dataset sizes
     logging.info("3a. Dataset sizes:")

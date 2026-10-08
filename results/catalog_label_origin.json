@@ -1,0 +1,193 @@
+{
+  "catalog": {
+    "n_entries": 11853,
+    "date_range": [
+      "2021-01-19 02:42:00",
+      "2025-01-01 00:00:00"
+    ],
+    "share_generic_station": 0.024719480300345903,
+    "n_malformed_rows_skipped": 8,
+    "types": {
+      "III": 8998,
+      "VI": 1333,
+      "II": 354,
+      "CTM": 318,
+      "V": 171,
+      "RBR": 127,
+      "IV": 84,
+      "DCIM": 71,
+      "RSP": 68,
+      "U": 38,
+      "CAU": 37,
+      "V?": 33,
+      "III?": 22,
+      "REM": 22,
+      "II?": 21,
+      "J": 21,
+      "I": 16,
+      "???": 16,
+      "III/R": 14,
+      "VII": 14,
+      "IV?": 10,
+      "?": 9,
+      "---": 8,
+      "U?": 7,
+      "CTM/CAU": 5,
+      "II/CTM?": 4,
+      "R": 3,
+      "VI/CTM": 2,
+      "I?": 2,
+      "CTMCAU": 2,
+      "III/J": 2,
+      "III/V": 2,
+      "CTM/p": 2,
+      "III_r": 1,
+      "III,V": 1,
+      "III,I": 1,
+      "IIIr": 1,
+      "VI/V": 1,
+      "CTN": 1,
+      "VI/R": 1,
+      "CTM+VI": 1,
+      "III/R?": 1,
+      "CTM?": 1,
+      "III/p": 1,
+      "CTM/VI": 1,
+      "IIII": 1,
+      "U/III": 1,
+      "III/U": 1,
+      "N": 1,
+      "CTM/II?": 1
+    }
+  },
+  "matching_validation_trainval": {
+    "bursts_listed_station": 0.9912099276111686,
+    "bursts_listed_any": 0.9971362660090685,
+    "nonbursts_listed_any": 0.08196049931943837
+  },
+  "test_label_origin": {
+    "bursts": 4100,
+    "bursts_listed_station": 0.7502439024390244,
+    "bursts_listed_any": 0.7831707317073171,
+    "nonbursts_listed_any": 0.07414268970471473,
+    "by_leak": {
+      "leaked_listed_station": 0.967670011148272,
+      "clean_listed_station": 0.33498935415188075,
+      "leaked_listed_any": 0.9843924191750278,
+      "clean_listed_any": 0.3988644428672818
+    }
+  },
+  "leak_gap_within_label_origin": {
+    "FlareSense-v2": {
+      "catalog_listed_any": {
+        "n_leaked": 2649,
+        "n_clean": 562,
+        "recall_leaked": 0.8893922234805587,
+        "recall_clean": 0.7099644128113879,
+        "gap_pp": 17.942781066917078,
+        "gap_ci95_pp_cluster": [
+          14.021976355503774,
+          22.028634565538074
+        ]
+      },
+      "not_listed_any": {
+        "n_leaked": 42,
+        "n_clean": 847,
+        "recall_leaked": 0.38095238095238093,
+        "recall_clean": 0.24203069657615112,
+        "gap_pp": 13.892168437622981
+      },
+      "catalog_listed_station": {
+        "n_leaked": 2604,
+        "n_clean": 472,
+        "recall_leaked": 0.892089093701997,
+        "recall_clean": 0.7415254237288136,
+        "gap_pp": 15.056366997318339
+      },
+      "not_listed_station": {
+        "n_leaked": 87,
+        "n_clean": 937,
+        "recall_leaked": 0.5632183908045977,
+        "recall_clean": 0.2710779082177161,
+        "gap_pp": 29.21404825868816
+      }
+    },
+    "old_HF_predictions": {
+      "catalog_listed_any": {
+        "n_leaked": 2649,
+        "n_clean": 562,
+        "recall_leaked": 0.8342770856927142,
+        "recall_clean": 0.8665480427046264,
+        "gap_pp": -3.2270957011912182,
+        "gap_ci95_pp_cluster": [
+          -6.4628158380583525,
+          0.01633991915237337
+        ]
+      },
+      "not_listed_any": {
+        "n_leaked": 42,
+        "n_clean": 847,
+        "recall_leaked": 0.7857142857142857,
+        "recall_clean": 0.6446280991735537,
+        "gap_pp": 14.1086186540732
+      },
+      "catalog_listed_station": {
+        "n_leaked": 2604,
+        "n_clean": 472,
+        "recall_leaked": 0.8341013824884793,
+        "recall_clean": 0.885593220338983,
+        "gap_pp": -5.14918378505037
+      },
+      "not_listed_station": {
+        "n_leaked": 87,
+        "n_clean": 937,
+        "recall_leaked": 0.8160919540229885,
+        "recall_clean": 0.656350053361793,
+        "gap_pp": 15.974190066119554
+      }
+    }
+  },
+  "catalog_listed_controls": {
+    "FlareSense-v2": {
+      "OR_leak": 0.6905002258596,
+      "OR_ci95": [
+        0.4488992775453179,
+        1.0621326113941563
+      ],
+      "p": 0.09187208203405438,
+      "n": 3211,
+      "size_matched_2to3": {
+        "n_leaked": 533,
+        "n_clean": 51,
+        "gap_pp": 17.010631644777984
+      }
+    },
+    "old_HF_predictions": {
+      "OR_leak": 0.35200989544088923,
+      "OR_ci95": [
+        0.22244076105678176,
+        0.5570515309317585
+      ],
+      "p": 8.258059280333261e-06,
+      "n": 3211,
+      "size_matched_2to3": {
+        "n_leaked": 533,
+        "n_clean": 51,
+        "gap_pp": 2.7222896663355756
+      }
+    },
+    "DiD_v2_minus_old_pp": 21.16987676810829,
+    "DiD_ci95_pp_cluster": [
+      17.099533207695224,
+      25.416559390344222
+    ],
+    "recall_on_PI_added_bursts": {
+      "FlareSense-v2": 0.24859392575928008,
+      "old_HF_predictions": 0.6512935883014623
+    },
+    "recall_on_catalog_listed_bursts": {
+      "FlareSense-v2": 0.8579881656804734,
+      "old_HF_predictions": 0.8399252569293055
+    }
+  }
+}

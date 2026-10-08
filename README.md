@@ -2,111 +2,111 @@
 
 [![Python 3.9+](https://img.shields.io/badge/python-3.9%2B-blue.svg)](https://www.python.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![No GPU Required](https://img.shields.io/badge/GPU-Not%20Required-green.svg)]()
 [![Data: HuggingFace](https://img.shields.io/badge/Data-HuggingFace-orange.svg)](https://huggingface.co/datasets/i4ds/ecallisto_radio_sunburst)
+[![Preprint: arXiv](https://img.shields.io/badge/arXiv-2607.26014-b31b1b.svg)](https://arxiv.org/abs/2607.26014)
 
-An independent methodological audit of **FlareSense-v2** (Timmel et al. 2026, [arXiv:2607.26014v1](https://arxiv.org/html/2607.26014v1)), a deep learning system for solar radio burst detection on e-CALLISTO spectrograms.
+This repository contains the complete independent evaluation audit, controlled retraining framework, and replication package for **FlareSense-v2** (Vincenzo Timmel, André Csillaghy, Christian Monstein, 2026, [arXiv:2607.26014v1](https://arxiv.org/abs/2607.26014)), an automated ResNet-34 system for solar radio burst detection on global e-CALLISTO radio spectrograms.
 
-We identify event-level data leakage (65–74% of test bursts share physical events with training), test-set hyperparameter tuning, and base rate sensitivity. After removing event overlap, **recall drops from 83.4% to 73.3%** (−10 pp) and model confidence shifts (median 0.978 → 0.831). The headline precision drop of −15.4 pp includes a compositional artifact from the changed class balance (see full report §4.1). All findings are reproducible from the publicly available HuggingFace dataset without GPU access.
+---
 
-## Key Findings
+## Executive Summary
 
-1. **Event-Level Data Leakage**: 65–74% of test burst samples share a physical solar event with training data. The random split does not account for the fact that the same burst is recorded by multiple stations simultaneously.
+FlareSense-v2 reported headline test performance of 93.0% precision and 73.15% recall. Our independent reproducibility audit reveals four primary findings:
 
-2. **Performance Degradation**: Removing event overlap drops recall from 83.4% to 73.3% (−10.0 pp on burst samples) and shifts model confidence (median prob 0.978 → 0.831). The headline precision drop (−15.4 pp) and F1 drop (−10.7 pp) are statistically significant (bootstrap 95% CI excludes zero) but include a compositional component from the changed class balance in the clean subset.
+1. **Multi-Station Event Leakage (Observational Disparity)**: Because spectrograms were partitioned randomly by file rather than by astronomical UTC event window, **65.6% of test bursts** (2,691 of 4,100) share an identical 15-minute event window with training samples (expanding to 74.3% within $\pm 60$ minutes). On truly unseen ("clean") solar events, test recall drops from **88.15% to 42.87%** (an observational deficit of **45.28 percentage points**, 95% CI: [39.4, 51.2]). Median model confidence drops from **0.790 to 0.289**, falling well below the 0.426 classification threshold.
+2. **Asymmetric Annotation Protocol**: Cross-matching all 304,750 dataset spectrograms against 11,853 events in the official e-CALLISTO catalog (2021–2024) reveals that 99.1% of training bursts are standard catalog events. In the clean test partition, however, **847 bursts (60.1%)** do not appear in the catalog under any station (and 66.5% do not match for that specific station); these were added during post-hoc manual re-inspection by the Principal Investigator. Equivalent faint features in training were labeled as background ($y=0$). Restricting evaluation strictly to standard catalog bursts contracts the observational recall gap by **27.34 pp** (from 45.28 pp down to 17.94 pp), and threshold-free rank discrimination is near-identical ($\text{AUROC} > 0.977$, gap $< 1\%$).
+3. **Controlled Retraining ($N=3$ Seeds, 6 Models)**: Contrasting a temporal `purged` training arm against an exact-size `random_control` across 3 independent seeds under the authors' exact recipe causally proves that multi-station event leakage inflates recall, but its causal contribution is **modest: between 0 and 6 pp** depending on operating point (+5.78 pp [95% $t$-interval: 2.68, 8.87] at conservative calibration thresholds; +0.52 pp [95% $t$-interval: −4.52, 5.56] at test-matched operational false alarm rates). The majority of the apparent 45.28 pp deficit is explained by label protocol asymmetry and event detectability/size.
+4. **Test-Set Optimization Forensics**: Hyperparameter optimization sweep configs (`configs/sweep_*.yml`) targeted `test_avg_f1` with `val_split: test`, serving as an interactive development scaffold that inadvertently compromised test-set sequestration.
+5. **Operational Base-Rate Sensitivity**: At realistic space weather event prevalences ($\pi \in [0.001, 0.01]$), Bayes' theorem establishes that operational precision (PPV) drops to **7.9% – 46.5%**, yielding a 53% to 92% false alarm rate in continuous single-station deployment.
 
-3. **Confidence Shift**: The model assigns systematically higher probabilities to leaked bursts (median 0.978) than clean ones (median 0.831), indicating event-specific calibration rather than physics-based generalization.
+---
 
-4. **Test-Set Hyperparameter Tuning**: A 6-link trace through the repository shows that hyperparameter optimization targeted `test_avg_f1` with `val_split: test`, contradicting Section 5.2 of the paper.
+## Replication Pipeline (01 → 07)
 
-5. **Base Rate Sensitivity**: At realistic deployment prevalences (0.1–1%), precision drops to 6–39% by Bayes' theorem, undiscussed in the paper's deployment claims.
+The repository provides end-to-end reproducible scripts in [`analysis/`](analysis/):
+
+| Step | Script | Description | Primary Output |
+|:---:|:---|:---|:---|
+| **01** | [`analysis/01_run_v2_inference.py`](analysis/01_run_v2_inference.py) | Downloads checkpoint `i4ds/flaresense-v2/model.ckpt` from Hugging Face and generates predictions on test set ($N=30,549$) | `results/core_results.json` |
+| **02** | [`analysis/02_core_analysis.py`](analysis/02_core_analysis.py) | Computes micro/macro metrics, identifies $\pm 15$m / $\pm 60$m event leakage, and measures the 45.28 pp gap | `results/core_results.json` |
+| **03** | [`analysis/03_breakdowns.py`](analysis/03_breakdowns.py) | Computes monotonic exposure-response gradient, station-wise degradation, and probability quantiles | `results/breakdown_results.json` |
+| **04** | [`train/train_leakage_experiment.py`](train/train_leakage_experiment.py) | Controlled retraining framework: executes `purged` vs `random_control` across 3 random seeds ($N=3$, 6 models total) | `checkpoints/*.pt` |
+| **05** | [`analysis/05_catalog_label_origin.py`](analysis/05_catalog_label_origin.py) | Cross-matches all splits against official e-CALLISTO catalog; identifies 847 uncatalogued clean bursts | `results/catalog_label_origin.json` |
+| **06** | [`analysis/06_evaluate_retraining.py`](analysis/06_evaluate_retraining.py) | Evaluates retrained checkpoints on test split; computes double-difference contrasts ($\Delta\Delta$) | `results/retraining_experiment.json` |
+| **07** | [`analysis/07_robustness_and_decomposition.py`](analysis/07_robustness_and_decomposition.py) | Evaluates multi-regime robustness (Calib-Fixed, Matched FPR, Matched Recall, AUROC) and two-step gap reduction | `results/decomposition_and_robustness.json` |
+
+---
 
 ## Quick Start
 
+### 1. Environment Setup
+
 ```bash
+# Clone repository
+git clone https://github.com/FlareSense-v2-Audit/FlareSense-v2-Audit.git
+cd FlareSense-v2-Audit
+
 # Install dependencies
 pip install -r requirements.txt
-
-# Reproduce all metrics (downloads ~67.5GB dataset with images on first run)
-python scripts/reproduce_all.py
-
-# Generate all 6 figures
-python scripts/generate_figures.py
-
-# Find concrete leakage examples
-python scripts/leakage_examples.py
-
-# Per-station failure mode analysis
-python scripts/per_station_analysis.py
 ```
 
-## Repository Structure
+### 2. Reproduce Empirical Analysis (Using Precomputed Results)
 
-```
-FlareSense-v2-Audit/
-├── README.md
-├── LICENSE
-├── requirements.txt
-├── docs/
-│   ├── audit_v1.md              # Full audit report (v1.1)
-│   └── supplementary_forensics.md
-├── benchmark_v2/                 # Supplementary Event Graph (STI) Falsification & Benchmark Suite
-│   ├── README.md                # Benchmark documentation & architecture
-│   ├── graph_utils.py           # Single source of truth for graph construction
-│   ├── benchmark_core.py        # Main audit protocol
-│   ├── eg_loso_core.py          # EG-LOSO evaluation (Graph vs Temporal)
-│   ├── structural_core.py       # Targeted edge removal & structural metrics
-│   ├── adversarial_core.py      # Null models & adversarial edge perturbations
-│   ├── test_metrics.py          # Unit test suite
-│   └── docs/                    # Structural docs & ablation ladder
-├── scripts/
-│   ├── reproduce_all.py          # Main: reproduces all metrics + bootstrap CIs
-│   ├── generate_figures.py       # Generates all 6 publication-ready figures
-│   ├── leakage_examples.py       # Concrete event-level leakage examples
-│   └── per_station_analysis.py   # Per-station metrics + confidence analysis
-├── figures/
-│   ├── fig1_negative_prob_dist.png
-│   ├── fig2_burst_vs_nonburst.png
-│   ├── fig3_base_rate_ppv.png
-│   ├── fig4_metrics_comparison.png
-│   ├── fig5_leaked_vs_clean_prob.png
-│   └── fig6_per_station_delta_f1.png
-└── results/                      # Generated JSON outputs
+All machine-readable results are pre-computed in [`results/`](results/) for instant verification:
+
+```bash
+# Verify catalog label origin & uncatalogued burst counts
+python analysis/05_catalog_label_origin.py
+
+# Evaluate multi-regime robustness & causal double-differences
+python analysis/07_robustness_and_decomposition.py
+
+# Generate publication figures (Figures 1, 2, 3, and 4)
+python analysis/generate_figures.py
+python analysis/generate_comprehensive_figure.py
 ```
 
-## Event Graph Benchmark (v2)
+### 3. End-to-End Retraining (Optional, Requires GPU)
 
-The `benchmark_v2/` directory contains an independent falsification benchmark suite evaluating whether multi-station event graph structures are non-trivial, stable, and robust against randomization.
+To retrain all 6 models from scratch under the authors' exact recipe:
 
-Key components:
-- **Canonical Graph Core (`graph_utils.py`)**: Unified single source of truth for graph construction, topology metrics, and $IoU$/$IoL$ calculations.
-- **EG-LOSO Evaluation (`eg_loso_core.py`)**: Leave-One-Station-Out evaluation comparing event coverage ($IoL$) against a fair 1D temporal coincidence baseline.
-- **Null Models & Stress Tests (`benchmark_core.py`, `adversarial_core.py`)**: Time-shift null models, degree-preserving configuration models, station shuffling, and edge perturbation stress tests.
-
-> [!NOTE]
-> The primary conclusions of this audit are based strictly on leakage reproduction and repository forensics as presented in [docs/audit_v1.md](docs/audit_v1.md). The `benchmark_v2` suite provides supplementary structural evidence.
-
-## Full Report
-
-📄 **[Read the full audit report →](docs/audit_v1.md)**
-
-## Citation
-
-```bibtex
-@misc{flaresense_audit_2026,
-  title   = {Independent Reproducibility Audit of {FlareSense}-v2:
-             Evidence of Event-Level Evaluation Leakage in
-             Solar Radio Burst Classification},
-  year    = {2026},
-  note    = {Version 1.1},
-  url     = {https://github.com/Farrior13/FlareSense-v2-Audit}
-}
+```powershell
+# Runs 3 seeds x 2 arms (purged vs random_control) on GPU
+powershell -ExecutionPolicy Bypass -File train/run_overnight.ps1
 ```
+
+---
+
+## Two-Step Gap Reduction Summary
+
+Rather than imposing an uncalibrated additive decomposition across mismatched thresholds, the 45.28 pp observational recall deficit is structured into two verifiable steps:
+
+| Step / Dimension | Scope / Operating Regime | Metric / Effect | Interpretation / 95% Confidence Interval |
+|---|---|:---:|---|
+| **Step 1: Observational Scope**<br>*(Published FlareSense-v2)* | All Test Bursts ($n=2,689$)<br>Catalog Bursts ($n=1,842$) | 45.28 pp gap<br>17.94 pp gap | Raw published observational deficit<br>Standard e-CALLISTO catalog bursts |
+| | **Scope Reduction** | **$-$27.34 pp** | **Label protocol asymmetry + event detectability / SNR** |
+| **Step 2: Causal Leakage**<br>*(Retraining Contrast:)*<br>*Random Control − Purged*<br>*(3-Seed Pooled Mean)* | Calib-Fixed (Catalog)<br>Calib-Fixed (All Bursts)<br>Matched FPR$^*$ (Catalog)<br>Matched FPR$^*$ (All Bursts)<br>Matched Recall$^*$ (Catalog)<br>Matched Recall$^*$ (All Bursts)<br>Threshold-Free AUROC | **+5.78 pp**<br>**+4.09 pp**<br>**+0.52 pp**<br>**+2.21 pp**<br>**+1.68 pp**<br>**+2.86 pp**<br>**+0.001** | [2.68, 8.87] (positive across 3/3 seeds)<br>[2.75, 5.42] (positive across 3/3 seeds)<br>[$-$4.52, 5.56] (not significant; 2/3 seeds $>0$)<br>[$-$0.54, 4.95] (marginal; 3/3 seeds $>0$)<br>[$-$1.18, 4.53] (not significant; 3/3 seeds $>0$)<br>[2.06, 3.66] (positive across 3/3 seeds)<br>Rank difference $< 0.1\%$ in catalog |
+
+$^*$*Matched FPR and Matched Recall are sensitivity analyses with thresholds aligned on the test split.*
+
+---
+
+## Publication Package & Figures
+
+All publication figures and the complete LaTeX submission package are available in [`paper/`](paper/):
+
+- [`paper/main.tex`](paper/main.tex): Full LaTeX manuscript with balanced environments and verified citations.
+- [`paper/references.bib`](paper/references.bib): Bibliography containing verified Crossref DOIs and arXiv identifiers.
+- [`paper/arxiv_submission.zip`](paper/arxiv_submission.zip): Self-contained upload bundle for Overleaf / arXiv.
+- [`figures/`](figures/): Vector PDF and 300 DPI PNG figures:
+  - `fig0_concept_leakage_mechanism.pdf`: Physical multi-station leakage diagram.
+  - `fig1_leakage_collapse.pdf`: Observational recall disparity and confidence shift.
+  - `fig2_exposure_and_did.pdf`: Monotonic exposure-response curve and difference-in-differences.
+  - `fig3_station_collapse.pdf`: Instrument-level degradation across ground stations.
+  - `fig4_causal_retraining_contrast.pdf`: Operating regime sensitivity and causal contrast forest plot ($N=3$).
+
+---
 
 ## License
 
-This project is licensed under the MIT License — see [LICENSE](LICENSE) for details.
-
-## Acknowledgments
-
-This audit uses the publicly available dataset [`i4ds/ecallisto_radio_sunburst`](https://huggingface.co/datasets/i4ds/ecallisto_radio_sunburst) and references the code repository [`i4Ds/FlareSense-v2`](https://github.com/i4Ds/FlareSense-v2). We thank the original authors for making their data and code publicly available.
+This replication package is licensed under the [MIT License](LICENSE).

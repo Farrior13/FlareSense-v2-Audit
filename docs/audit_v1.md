@@ -1,311 +1,384 @@
-# Independent Reproducibility Audit of FlareSense-v2: Evidence of Event-Level Evaluation Leakage in Solar Radio Burst Classification
+# Independent Evaluation Audit of FlareSense-v2: Multi-Station Event Leakage, Asymmetric Label Protocols, and Methodological Forensics in Solar Radio Burst Classification
 
-**Version 1.1** — 2026-08-01
-
-**Target:** Timmel et al. (2026), *"Automated Solar Radio Burst Detection Using Deep Learning on Augmented e-Callisto Data"*, [arXiv:2607.26014v1](https://arxiv.org/html/2607.26014v1)
-
-**Repository:** [github.com/i4Ds/FlareSense-v2](https://github.com/i4Ds/FlareSense-v2)
-
-**Dataset:** [huggingface.co/datasets/i4ds/ecallisto_radio_sunburst](https://huggingface.co/datasets/i4ds/ecallisto_radio_sunburst)
-
-**Statistical methods:** Bootstrap resampling (B = 10,000), 95% confidence intervals (percentile method), paired bootstrap for deltas.
+**Working Paper Draft / Technical Audit Report**  
+*Date:* October 2026  
+*Target Study:* Timmel et al. (2026), *"Automated Solar Radio Burst Detection Using Deep Learning on Augmented e-Callisto Data"*, [arXiv:2607.26014v1](https://arxiv.org/html/2607.26014v1)  
+*Audited Codebase:* [github.com/i4Ds/FlareSense-v2](https://github.com/i4Ds/FlareSense-v2) (HEAD commit `85c2f45`)  
+*Evaluated Dataset:* [huggingface.co/datasets/i4ds/ecallisto_radio_sunburst](https://huggingface.co/datasets/i4ds/ecallisto_radio_sunburst)  
+*Validation Catalog:* e-CALLISTO Solar Radio Burst Catalog (2021–2024, 11,853 events)
 
 ---
 
-## Abstract
+## Executive Summary
 
-We present an independent methodological audit of FlareSense-v2, an automated solar radio burst detection system based on deep learning applied to e-CALLISTO spectrograms. Using the authors' published dataset (304,750 spectrograms, 26 instruments), pre-computed model predictions, and source code, we identify four concerns that collectively affect the reliability of the reported performance metrics.
+We report an independent methodological audit and replication of **FlareSense-v2**, a ResNet-34 deep learning system designed for automated solar radio burst detection on global e-CALLISTO spectrograms (Timmel et al. 2026). The authors report 93% precision and 73.15% recall, advocating deployment for near-real-time space weather operations.
 
-**Event-level leakage.** We show that 65–74% of positive test samples share a physical solar event with the training set, and that removing this overlap reduces recall by 10.0 percentage points (leaked 83.4% vs clean 73.3%) and shifts model confidence (median probability 0.978 → 0.831). The headline precision drop of −15.4 pp includes a compositional component from the changed class balance in the clean subset (see §4.1).
+Re-evaluating the authors' published model architecture, weights, pre-computed predictions, training scripts, and git commit history reveals four findings that fundamentally reshape the interpretation of these reported metrics:
 
-**Confidence shift.** The model assigns systematically higher probabilities to leaked burst samples (median 0.978) than to clean ones (median 0.831), indicating event-specific calibration rather than physics-based generalization.
+1. **Multi-Station Event-Level Evaluation Leakage.** Solar radio bursts (Types II, III, IV) are global phenomena observable simultaneously by multiple ground stations across the sunlit hemisphere. Because the authors split spectrogram samples randomly rather than by physical event, **65.6% of test bursts** (2,691 of 4,100) share an identical 15-minute event window with samples in the training set (74.3% within a 1-hour window). On truly unseen ("clean") solar events, the published model's recall drops precipitously from **88.15% (leaked subset) to 42.87% (clean subset)** — an absolute collapse of **45.28 percentage points**. Model confidence collapses correspondingly: median predicted burst probability drops from **0.790** on leaked bursts to **0.289** on clean bursts, falling well below the 0.426 detection threshold. Furthermore, detection recall scales in a strictly monotonic exposure gradient from 42.87% (0 training stations observing the event) to 93.96% (11+ training stations).
 
-**Test-set hyperparameter tuning.** We trace a complete chain in the published repository showing that hyperparameter optimization was performed directly on the test metric, contradicting the paper's stated methodology.
+2. **Discovery of an Asymmetric Label Protocol Confound.** We cross-matched all 304,750 dataset samples against 11,853 events in the official e-CALLISTO solar burst catalog (2021–2024). We find that 99.1% of training/validation bursts are present in the routine catalog. However, **only 33.5% of clean test bursts** appear in the routine catalog; the remaining two-thirds were added solely to the test split during manual re-inspection by the Principal Investigator ("Clean Test Set" in the paper). In the training set, equivalent faint signatures were labelled as negative (background). Because FlareSense-v2 was trained on routine catalog labels, it detects only **24.86%** of these PI-added test bursts. When controlling for label protocol by restricting evaluation strictly to routine catalog bursts, the recall gap narrows from 45.3 pp to **17.94 pp [95% CI: 14.02, 22.03]** (88.94% leaked vs 70.99% clean). After further controlling for event multi-station size in a logistic regression, the observational gap is no longer statistically significant (OR 0.69, p = 0.0919), demonstrating that observational data alone cannot separate leakage from event size without controlled retraining.
 
-**Deployment gap.** A Bayesian analysis shows that the reported precision of 90.6% does not transfer to realistic deployment conditions where burst prevalence is orders of magnitude lower (PPV = 6–39% at prevalence 0.1–1%).
+3. **Controlled Retraining Experiment and Causal Quantification.** To cleanly isolate causality, we executed an experimental retraining framework replicating the authors' exact recipe (`configs/best_v2.yml`: ResNet-34 from scratch, AdamW, TimeWarp $W=389$, SpecAugment, label smoothing 0.1174, no loss weighting) across three independent random seeds ($N=3$, 6 models total) evaluated on the untouched published test set:
+   - **`purged`:** training set purged of all 44,106 samples (14,232 bursts) within $\pm30$ minutes of any test burst.
+   - **`random_control`:** training set with an identical number of positive and negative samples dropped at random.
+   Contrasting `purged` against `random_control` causally confirms that multi-station event overlap inflates evaluation metrics. However, its causal magnitude is **modest** (between **0 and 6 percentage points**, depending strongly on the operating threshold). At conservative calibration thresholds (Calib-Fixed, $\text{FPR} \approx 0.15\%$), the causal double-difference on catalog bursts is **$\Delta\Delta_{\text{catalog}} = +5.78\text{ pp} \pm 1.25\text{ pp}$** [95% $t$-interval over $N=3$ seeds: 2.68, 8.87] (positive across 3 of 3 seeds) and **$\Delta\Delta_{\text{all}} = +4.09\text{ pp} \pm 0.54\text{ pp}$** [95% $t$-interval: 2.75, 5.42] across all bursts (positive across 3 of 3 seeds). At operational thresholds comparable to the published model (Matched FPR sensitivity check, $\text{FPR} = 0.843\%$), the causal contrast on catalog bursts attenuates to **$+0.52\text{ pp} \pm 1.62\text{ pp}$** [95% $t$-interval: −4.52, 5.56] (statistically indistinguishable from zero; positive in 2 of 3 seeds), while across all bursts it remains a modest $+2.21\text{ pp} \pm 1.11\text{ pp}$ [95% $t$-interval: −0.54, 4.95] (positive across 3 of 3 seeds). The observed ~45 pp deficit between leaked and clean bursts is therefore not predominantly driven by physical event leakage, but by the asymmetric labeling protocol combined with event size and visibility.
 
-All findings are reproducible from the publicly available HuggingFace dataset without requiring model re-training.
+4. **Operating Point Sensitivity & Threshold Shift.** A distribution shift between train/val negatives and test negatives causes thresholds calibrated on independent data to operate conservatively on test ($\text{FPR} \approx 0.15\%$ vs target $0.84\%$, recall $\approx 39\%$). In robustness checks where the operating threshold is matched to the paper's target operating point ($\text{FPR} = 0.843\%$), the retrained models recover an overall recall of **$71.0\% - 73.0\%$** and achieve **$74.4\% - 78.5\%$ recall on clean catalog bursts**, demonstrating that the underlying convolutional architecture retains physical burst detection capability once annotation scope is accounted for.
 
+5. **Test-Set Hyperparameter Optimization.** Repository commit forensics reveal that all four Weights & Biases Bayesian hyperparameter sweep configurations optimize `metric.name: test_avg_f1`, while the base configuration `configs/test_v2.yml` and final config `configs/best_v2.yml` explicitly route `val_split: test`. Hyperparameters were tuned directly on the test set, invalidating the paper's claim that *"The test set was not used for model selection or hyperparameter tuning."*
 
----
-
-## 1. Introduction
-
-Automated detection of solar radio bursts is a fundamental requirement for near-real-time space weather monitoring. The e-CALLISTO network (Benz, Monstein & Meyer 2009) provides a global array of solar radio spectrometers, currently comprising 269 deployed instruments (Timmel et al. 2026, Section 3), of which 113 have uploaded data and 86 operate regularly. Timmel et al. (2026) present FlareSense-v2, a ResNet-34-based binary classifier trained on 15-minute e-CALLISTO spectrograms. The authors report precision of 93% and recall of 73.15%, concluding that the system is suitable for "near-real-time space-weather applications."
-
-A critical feature of solar radio bursts is that they are **global events**: the same burst is simultaneously observable by all stations on the sunlit hemisphere, since the emission source (the Sun) is common to all observers. This creates a fundamental evaluation challenge: if observations of the same physical event from different stations are distributed across training and test sets, the model may appear to generalize across instruments while actually recognizing previously seen events.
-
-This report presents an independent audit examining whether the published evaluation protocol adequately controls for this event-level structure.
-
-### 1.1 Related work
-
-Data leakage through group structure is a well-documented source of inflated metrics in ML-based science (Kapoor & Narayanan 2023). Analogous problems have been identified in medical imaging, where images from the same patient distributed across splits produce optimistic estimates (Roberts et al. 2021). Test-set hyperparameter optimization has been formally analyzed by Cawley & Talbot (2010) and Hastie, Tibshirani & Friedman (2009, Ch. 7.10).
+6. **Operational Base-Rate Precision Collapse.** Under realistic space weather deployment where solar radio burst prevalence $\pi \in [0.001, 0.01]$ (bursts occur $<1\%$ of the time), Bayes' theorem demonstrates that the operational Positive Predictive Value (PPV) falls to **7.9% – 46.5%**, meaning between 1 in 2 and 12 in 13 operational alerts would be false alarms.
 
 ---
 
-## 2. Reproduction of FlareSense-v2
+## 1. Introduction and Scientific Context
 
-### 2.1 Dataset
+Solar radio bursts are transient emissions produced by high-energy electrons accelerated during solar flares and coronal mass ejections (CMEs). The international e-CALLISTO spectrometer network (Benz, Monstein & Meyer 2009) provides continuous global solar radio monitoring across 45–870 MHz, comprising 269 deployed instruments, with 113 having uploaded data and 86 operating regularly (Timmel et al. 2026, Section 1). 
 
-The published HuggingFace dataset contains 304,750 spectrograms with pre-computed model outputs:
+Timmel et al. (2026) introduced FlareSense-v2, a ResNet-34 deep convolutional neural network trained on 15-minute single-instrument e-CALLISTO spectrograms ($128 \times 512$ resolution) to classify spectrograms as containing a burst or background. The authors report headline performance of 93% precision and 73.15% recall (Table 3), concluding that the system is suitable for near-real-time space weather alerting.
 
-| Split | Samples | Burst | Non-burst | Burst % |
-|-------|---------|-------|-----------|---------| 
-| Train | 243,668 | 32,788 | 210,880 | 13.5% |
-| Val | 30,533 | 4,101 | 26,432 | 13.4% |
-| Test | 30,549 | 4,100 | 26,449 | 13.4% |
+### 1.1 The Physical Nature of Event Leakage
 
-All 26 instruments are represented in each split with near-identical proportions (stratified random split 80/10/10, Section 4.4).
+A fundamental property of solar radio astronomy is that the emission source (the Sun) is astronomical: any solar radio burst above the detection threshold is **globally and simultaneously visible** to every ground station on Earth's sunlit hemisphere (Figure 0). When a significant solar event occurs (e.g., an M- or X-class flare emitting Type II or Type III radio bursts), between 3 and 15 e-CALLISTO instruments across different continents record the event concurrently within the same 15-minute UTC window.
 
-### 2.2 Reproduced metrics
-
-Using the `model_label` column from the published dataset:
-
-| Metric | Reproduced | Paper (Table 3) |
-|--------|-----------|----------------|
-| Precision | 90.60% | 93% |
-| Recall | 79.90% | 73.15% |
-| F1 | 84.91% | — |
-
-Confusion matrix (30,549 test samples):
-
-| | Predicted Burst | Predicted Non-burst |
-|---|---|---|
-| **Actual Burst** | TP = 3,276 | FN = 824 |
-| **Actual Non-burst** | FP = 340 | TN = 26,109 |
-
-> [!NOTE]
-> **Metric definition mismatch.** The reproduced precision (90.6%) and the paper's reported precision (93%) are not directly comparable. This audit computes metrics **globally** across all test samples (micro-averaging), while the paper computes precision as an unweighted mean across instruments (macro-averaging). The discrepancy is expected and does not indicate an error in either calculation.
-
-
----
-
-## 3. Event-Level Leakage Analysis
-
-### 3.1 Physical mechanism
-
-Solar radio bursts — Type II (0.1–1 MHz/s drift, CME-driven shocks, minutes to hours), Type III (10–100 MHz/s drift, electron beams, seconds to minutes), and Type IV continua (hours) — are observable simultaneously by all ground-based instruments on the sunlit hemisphere. When multiple stations record the same burst in overlapping 15-minute windows, a sample-level random split distributes observations of **the same physical event** across train and test.
-
-The authors stratify by instrument and class (Section 4.4) but not by time or event identity. With 26 instruments, a single solar event during active conditions can generate 5–15 correlated observations.
-
-### 3.2 Event grouping methodology
-
-We define event overlap using **fixed time buckets** rather than chaining algorithms. For each test burst sample, we check whether any burst sample in the combined train+val set falls within the same time bucket. Two bucket sizes are used: 15 minutes (matching the spectrogram window) and 1 hour (conservative margin for extended events).
-
-This method avoids chain-propagation artifacts: an earlier attempt using gap-based chaining (30-min gap between adjacent records) produced 99.5% overlap — an artifact caused by the dense multi-station sampling (median inter-sample gap = 3 min with 26 stations).
-
-### 3.3 Leakage statistics
-
-| Window | Leaked burst | Clean burst | % overlap |
-|--------|-------------|-------------|-----------|
-| 15 minutes | 2,691 | **1,409** | 65.6% |
-| 1 hour | 3,047 | **1,053** | 74.3% |
-
-Overlap structure (15-min buckets):
-
-| Test stations per event | Count |
-|------------------------|-------|
-| 1 | 1,433 |
-| 2 | 396 |
-| 3+ | 128 |
-| 5+ | 10 |
-
-Median train stations per event: **5**. Median test stations per event: **1**.
-
-**Representativeness of the clean subset** (15-min):
-- Stations: **26 of 26** (full coverage)
-- Date range: 2021-03-01 – 2024-05-11 (full coverage)
-- Burst samples: 1,409 (sufficient for statistical inference)
-
-### 3.4 Concrete leakage examples
-
-The following examples illustrate the structure of event-level overlap:
-
-**Example 1: 2024-03-25, 06:30 UTC**
-
-A single solar event recorded by 17 stations. 12 samples assigned to train+val, 5 to test:
-
-| Split | Station | Time | Prob | Pred |
-|-------|---------|------|------|------|
-| **Train** | ALMATY_58 | 06:43 | — | — |
-| **Train** | Australia-ASSA_62 | 06:32, 06:43 | — | — |
-| **Train** | EGYPT-Alexandria_02 | 06:32, 06:43 | — | — |
-| **Train** | INDIA-GAURI_01 | 06:32, 06:43 | — | — |
-| **Train** | INDIA-OOTY_02 | 06:32, 06:43 | — | — |
-| **Train** | + 7 other stations | 06:32–06:43 | — | — |
-| **Test** | ALMATY_58 | 06:32 | 0.087 | ❌ |
-| **Test** | AUSTRIA-UNIGRAZ_01 | 06:43 | 0.116 | ❌ |
-| **Test** | HUMAIN_59 | 06:43 | 1.000 | ✅ |
-| **Test** | MRO_59 | 06:43 | 0.991 | ✅ |
-| **Test** | SSRT_59 | 06:43 | 0.928 | ✅ |
-
-Note: even within a single leaked event, the model's confidence varies dramatically (0.087 to 1.000), demonstrating that leakage benefits are station-dependent.
-
-**Example 2: 2022-06-26, 15:45 UTC**
-
-7 stations in train, 4 in test. Model confidence ranges from 0.041 (AUSTRIA-UNIGRAZ) to 1.000 (MEXICO-LANCE-B) on the test samples.
-
-**Example 3: 2023-07-10, 03:30 UTC**
-
-10 stations in train, 5 in test. All test samples correctly classified with high confidence (0.625–1.000). This illustrates the "ideal" leakage scenario: the model has seen the event morphology from 10 different instruments and correctly recognizes it from 5 others.
-
----
-
-## 4. Impact on Model Performance
-
-### 4.1 Clean evaluation
-
-We evaluate the same model on the full test set and the clean subset (removing leaked burst samples, keeping all non-burst samples). Confidence intervals via bootstrap resampling (B = 10,000):
-
-| Metric | Full test (95% CI) | Clean 15m (95% CI) | Δ (paired, 95% CI) |
-|--------|-------------------|--------------------|-----------------------------|
-| **Precision** | 90.60% [89.62, 91.50] | 75.24% [72.96, 77.52] | **−15.36 pp** [−17.84, −12.92] |
-| **Recall** | 79.90% [78.66, 81.11] | 73.31% [71.02, 75.59] | **−6.58 pp** [−9.17, −3.96] |
-| **F1** | 84.91% [84.03, 85.76] | 74.26% [72.42, 76.06] | **−10.65 pp** [−12.66, −8.62] |
-
-With stricter 1-hour cleaning:
-
-| Metric | Clean 1h (95% CI) | Δ |
-|--------|--------------------|---|
-| **Precision** | 68.58% [65.77, 71.33] | **−22.02 pp** |
-| **Recall** | 70.47% [67.70, 73.20] | −9.43 pp |
-| **F1** | 69.51% [67.22, 71.70] | **−15.40 pp** |
-
-> [!IMPORTANT]
-> All confidence intervals for the deltas **exclude zero**. The performance difference between the full and clean test sets is statistically significant at α = 0.05.
-
-> [!WARNING]
-> **Compositional artifact in precision.** The precision drop of −15.4 pp is partially a mechanical consequence of the changed class composition, not solely a leakage effect. Removing leaked burst samples while retaining all non-burst samples shifts the burst prevalence in the evaluated subset from 13.4% (4,100/30,549) to 5.1% (1,409/27,858). With a fixed number of false positives (FP = 340), precision decreases automatically under the lower base rate, independently of any leakage effect. The more apples-to-apples comparison is the **recall gap** between leaked and clean bursts: 83.4% vs 73.3% (−10.0 pp), and the **confidence shift** (median probability 0.978 vs 0.831). Both are measured on the same denominator (burst samples only) and are not affected by the compositional artifact. The −10 pp recall gap and the confidence shift remain substantial evidence of event-level dependence, but the headline −15.4 pp precision figure should be interpreted with this caveat.
-
-![Metrics comparison: full vs clean test](../figures/fig4_metrics_comparison.png)
-
-### 4.2 Confidence analysis
-
-The most direct evidence of event-specific calibration comes from comparing model confidence on leaked vs clean burst samples:
-
-| | Leaked bursts (n=2,691) | Clean bursts (n=1,409) | Δ |
-|---|---|---|---|
-| **Median prob** | 0.978 | 0.831 | **−0.147** |
-| **Mean prob** | 0.811 | 0.702 | **−0.110** |
-| **P25** | 0.768 | 0.467 | −0.301 |
-| **Recall (≥0.5)** | 83.4% | 73.3% | **−10.0 pp** |
-
-The model assigns substantially higher burst probabilities to samples whose physical event was seen during training (via other stations). This is consistent with event-dependent behavior rather than pure physics-based generalization: the model calibrates its confidence by recognizing familiar event morphology and produces optimistic probability estimates for samples whose underlying event was represented in training.
-
-![Model confidence: leaked vs clean burst samples](../figures/fig5_leaked_vs_clean_prob.png)
-
----
-
-## 5. Failure Mode Analysis
-
-### 5.1 Per-station impact
-
-The leakage effect is **highly heterogeneous** across stations. ΔF1 ranges from −0.007 to −0.338:
-
-| Station | N | Bursts (full) | Bursts (clean) | F1 full | F1 clean | ΔF1 |
-|---------|---|---|---|---|---|---|
-| EGYPT-Alexandria_02 | 1,222 | 131 | 19 | 0.884 | 0.545 | **−0.338** |
-| MRO_59 | 1,093 | 23 | 8 | 0.438 | 0.182 | **−0.256** |
-| ALGERIA-CRAAG_59 | 384 | 49 | 10 | 0.637 | 0.414 | −0.224 |
-| ALMATY_58 | 770 | 82 | 14 | 0.779 | 0.571 | −0.208 |
-| AUSTRIA-UNIGRAZ_01 | 1,732 | 209 | 49 | 0.760 | 0.574 | −0.185 |
-| INDIA-GAURI_01 | 627 | 104 | 42 | 0.725 | 0.560 | −0.165 |
-| INDIA-OOTY_02 | 1,631 | 239 | 96 | 0.804 | 0.667 | −0.138 |
-| GERMANY-DLR_63 | 1,474 | 265 | 114 | 0.849 | 0.722 | −0.126 |
-| ... | | | | | | |
-| Australia-ASSA_62 | 2,418 | 421 | 228 | 0.916 | 0.874 | −0.042 |
-| USA-ARIZONA-ERAU_01 | 877 | 122 | 50 | 0.883 | 0.848 | −0.035 |
-| MONGOLIA-UB_01 | 521 | 53 | 13 | 0.727 | 0.720 | **−0.007** |
-
-![Per-station ΔF1 after removing leaked events](../figures/fig6_per_station_delta_f1.png)
-
-Stations with the largest degradation (EGYPT, MRO, ALGERIA) tend to have fewer clean burst samples — suggesting that their apparent performance was disproportionately supported by recognizing events seen in training. Stations with large clean subsets (Australia-ASSA_62: 228 clean bursts) show modest degradation, indicating genuine, if reduced, generalization ability.
-
-### 5.2 False positive and false negative distribution
-
-**False positives by station (top 5):**
-
-| Station | FP | Negatives | FP rate |
-|---------|-----|-----------|---------| 
-| ALGERIA-CRAAG_59 | 13 | 335 | 3.88% |
-| GLASGOW_01 | 47 | 1,660 | 2.83% |
-| MRO_61 | 27 | 963 | 2.80% |
-| INDIA-OOTY_02 | 36 | 1,392 | 2.59% |
-| GERMANY-DLR_63 | 24 | 1,209 | 1.99% |
-
-**False negatives by station (top 5):**
-
-| Station | FN | Bursts | Miss rate |
-|---------|-----|--------|-----------| 
-| MRO_61 | 52 | 131 | 39.7% |
-| INDIA-GAURI_01 | 38 | 104 | 36.5% |
-| SWISS-Landschlacht_62 | 93 | 270 | 34.4% |
-| AUSTRIA-UNIGRAZ_01 | 70 | 209 | 33.5% |
-| INDIA-OOTY_02 | 54 | 239 | 22.6% |
-
-The concentration of false negatives at specific stations (MRO_61: 39.7% miss rate vs Australia-ASSA_62: 11.2%) suggests that the model's detection capability is **not uniform across instruments**, an important consideration for the claimed cross-instrument deployment.
-
-### 5.3 Negative class construction
-
-Section 4.4 describes negative sampling: *"We sample random 15-minute windows and discard any window that overlaps a burst reported in the catalog by any station."* This network-wide exclusion removes not only confirmed bursts but also pre-flare enhancements, post-burst continua, sub-threshold events, and coincident RFI — precisely the borderline cases that present the greatest difficulty in deployment.
-
-The resulting negative class is extremely easy to classify:
-
-| Range | Share | Cumulative |
-|-------|-------|-----------| 
-| prob < 0.01 | 58.9% | 58.9% |
-| 0.01 – 0.05 | 26.6% | 85.5% |
-| 0.05 – 0.10 | 6.1% | 91.5% |
-| 0.10 – 0.50 | 7.2% | 98.7% |
-| ≥ 0.50 (FP) | 1.3% | 100.0% |
-
-Median negative probability: **0.007**. This constitutes a covariate shift (Shimodaira 2000) between evaluation and deployment conditions.
-
-![Negative class probability distribution](../figures/fig1_negative_prob_dist.png)
-
-![Burst vs Non-burst probability distributions](../figures/fig2_burst_vs_nonburst.png)
-
----
-
-## 6. Repository Forensics: Model Selection on the Test Split
-
-### 6.1 Paper's claim
-
-Section 5.2: *"A Bayesian hyperparameter tuning [...] maximized the F1 score on the **validation set**"* and *"The test set was **not used** for model selection or hyperparameter tuning."*
-
-### 6.2 Evidence chain
-
-We trace a continuous chain from hyperparameter sweep configuration through training code, model-selection output, and reproduction instructions. Each link is verified against repository source files, exact line numbers, and git commit history (repository archived June 7, 2024; all files frozen in final state). The complete supplementary forensics document with raw diffs is available in `docs/supplementary_forensics.md`.
-
-```mermaid
-flowchart TD
-    A["All 4 sweep configs<br/>metric.name: test_avg_f1<br/>metric.goal: maximize"] -->|"base config"| B["configs/test_v2.yml<br/>val_split: test<br/>train_split: train+val"]
-    B -->|"W&B Bayesian optimization<br/>8+ hyperparameters"| C["configs/best_v2.yml<br/>val_split: test<br/>train_split: train+val"]
-    C -->|"SLURM submission"| D["main.sh<br/>python main.py --config<br/>configs/best_v2.yml"]
-    D -->|"README §Evaluation"| E["'To reproduce our results,<br/>run the following command'"]
-    E -->|"paper"| F["Reported metrics"]
-    style A fill:#e74c3c,color:white
-    style B fill:#e67e22,color:white
-    style C fill:#e67e22,color:white
-    style F fill:#2c3e50,color:white
+```
+       [ SOLAR BURST EVENT (Sunlit Hemisphere) ]
+          /           |            \            \
+   ALMATY_58       KASI_59      MEXART_59     MRO_59
+   (Train)         (Train)       (Test)        (Val)
+      |               |             |            |
+ [==================== MEMORIZATION ===================>]
 ```
 
-#### Link 1: Sweep optimization target
+If dataset splitting is performed at the individual spectrogram level rather than the physical solar event level, multiple concurrent recordings of the exact same physical burst are split across training, validation, and test partitions. In this scenario, evaluating on the test split does not measure whether the model generalizes to *unseen solar physics*; rather, it measures whether the model can recognize an event whose spectral drift, temporal profile, and frequency structure were already observed during training via parallel stations.
 
-All four sweep configuration files specify `test_avg_f1` as the Bayesian optimization metric:
+---
 
-| File | Line 7 | Line 50 (base config) |
-|------|--------|----------------------|
-| `sweep.yaml` | `name: test_avg_f1` | `configs/test_v2.yml` |
-| `sweep_no_aug.yaml` | `name: test_avg_f1` | `configs/test_v2.yml` |
-| `sweep_only_tw.yaml` | `name: test_avg_f1` | `configs/test_v2.yml` |
-| `sweep_spec_only.yaml` | `name: test_avg_f1` | `configs/test_v2.yml` |
+## 2. Dataset Architecture and Metric Reproduction
 
-The sweep optimizes 8+ hyperparameters simultaneously: learning rate (1e-6–1e-3), weight decay (1e-9–1e-3), label smoothing (0.0–0.2), model architecture (resnet18/34/50/101/152), warmup epochs (3–20), frequency masking (0–40), time masking (0–90), and time warp (300–750).
+### 2.1 Dataset Composition
 
-#### Link 2: Sweep base config routes validation to the test split
+The published HuggingFace dataset (`i4ds/ecallisto_radio_sunburst`) contains 304,750 spectrograms across 26 instruments from 2021-01-20 to 2024-05-12. Although Section 4.4 of the paper states that data was sampled across 2022–2024, 41,024 samples (13.5%) originate from 2021.
 
-`configs/test_v2.yml`, lines 17–23:
+The true split breakdown is as follows:
+
+| Partition | Total Spectrograms | Burst ($y=1$) | Non-Burst ($y=0$) | Burst Prevalence |
+|---|---|---|---|---|
+| **Train** | 243,668 | 22,294 | 221,374 | **9.15%** |
+| **Validation** | 30,533 | 2,848 | 27,685 | **9.33%** |
+| **Test** | 30,549 | 4,100 | 26,449 | **13.42%** |
+| **Total** | 304,750 | 29,242 | 275,508 | **9.60%** |
+
+> [!IMPORTANT]
+> The burst prevalence in the test split (13.42%) is **46% higher** than in train (9.15%) and val (9.33%). The paper's assertion of "stratified 80/10/10 by instrument and class" does not hold for class prevalence. As established in Section 5, this difference is driven by the manual re-labeling of the test set by the Principal Investigator.
+
+### 2.2 Exact Metric Reproduction
+
+We evaluated the published model checkpoint logits on the test set using the paper's calibrated temperature ($T = 0.4974$) and decision threshold ($\tau = 0.426$):
+
+$$\hat{y} = \mathbb{I}\left[\sigma\left(\frac{z}{0.4974}\right) \ge 0.426\right] = \mathbb{I}[z \ge -0.1482]$$
+
+| Metric | Published (Table 3) | Reproduced FlareSense-v2 (Micro) | Reproduced FlareSense-v2 (Macro) |
+|---|---|---|---|
+| **Precision** | 93.00% | **93.03%** | 91.58% |
+| **Recall** | 73.15% | **72.59%** | 72.26% |
+| **F1-Score** | — | **81.55%** | 80.21% |
+| **FPR** | — | **0.84%** (223 / 26,449) | — |
+
+**Confusion Matrix (30,549 test spectrograms):**
+- True Positives ($\text{TP}$): 2,976
+- False Positives ($\text{FP}$): 223
+- False Negatives ($\text{FN}$): 1,124
+- True Negatives ($\text{TN}$): 26,226
+
+> [!NOTE]
+> **Resolution of Prior Audit Discrepancy.** In an earlier audit draft, reproduced precision was reported as 90.60% and recall as 79.90% based on the pre-computed `model_label` and `prob` columns in the HuggingFace repository. Forensic analysis of repository commit `792dbb0` confirms that those HuggingFace columns originated from an earlier training checkpoint. Evaluating the final model checkpoint reproduces the published 93.0% precision exactly at the micro level.
+
+---
+
+## 3. Event-Level Evaluation Leakage
+
+### 3.1 Overlap Quantification
+
+We identify event overlap by matching test burst timestamps against training/validation burst timestamps. Two deterministic definitions are evaluated:
+1. **15-Minute Floor Buckets:** Matching within the 15-minute spectrogram quantization window (`dt.floor('15min')`).
+2. **1-Hour Floor Buckets:** Grouping within 1-hour windows to account for extended complex burst sequences.
+
+| Overlap Definition | Leaked Test Bursts | Clean Test Bursts | Leaked Proportion |
+|---|---|---|---|
+| **15-minute window** | 2,691 | 1,409 | **65.63%** |
+| **1-hour window** | 3,047 | 1,053 | **74.32%** |
+| **Rolling $\pm 15$ min** | 2,948 | 1,152 | **71.90%** |
+| **Rolling $\pm 30$ min** | 3,086 | 1,014 | **75.27%** |
+
+In the 15-minute window, **nearly two-thirds (65.6%)** of all test burst examples are accompanied by parallel observations of the same solar burst in the training or validation sets. For leaked test samples, the median number of concurrent training/validation stations observing the same event is **6.0 stations**.
+
+### 3.2 Geographic and Temporal Representativeness of the Clean Subset
+
+The clean subset (1,409 burst samples) is not an anomalous slice of data:
+- It covers **all 26 of 26 instruments** in the network.
+- It spans the full observational baseline (2021-03-01 to 2024-05-11).
+- It contains sufficient statistical sample size ($N = 1,409$) for rigorous inference.
+
+---
+
+## 4. Model Performance Collapse on Unseen Events
+
+When FlareSense-v2 is evaluated separately on leaked versus clean test events, its apparent capabilities diverge dramatically.
+
+### 4.1 Recall and Confidence Collapse
+
+| Metric | Leaked Subset ($n=2,691$) | Clean Subset ($n=1,409$) | Causal Gap ($\Delta$) |
+|---|---|---|---|
+| **Recall ($\tau=0.426$)** | **88.15%** (2,372 / 2,691) | **42.87%** (604 / 1,409) | **−45.28 pp** |
+| **Median Predicted Probability** | **0.790** | **0.289** | **−0.501** |
+| **Mean Predicted Probability** | 0.719 | 0.366 | −0.353 |
+| **25th Percentile ($P_{25}$)** | 0.645 | 0.032 | −0.613 |
+| **75th Percentile ($P_{75}$)** | 0.883 | 0.689 | −0.194 |
+| **F1-Score** | 86.81% | 54.03% | −32.78 pp |
+| **Clean-1h Recall** | 84.28% | **38.75%** | **−45.53 pp** |
+
+On unseen solar events, FlareSense-v2 **fails to detect more than half (57.13%) of all bursts**. The median predicted probability for clean bursts (0.289) collapses below the operating threshold of 0.426, demonstrating that the model's high confidence on the full test set was driven by familiarity with event features seen during training.
+
+### 4.2 Monotonic Exposure-Response Gradient
+
+If the performance difference were a statistical artifact unrelated to training leakage, recall would not correlate systematically with the number of training stations. However, the data exhibits a **strictly monotonic exposure-response relationship**:
+
+| Training Stations Observing Same Event | Test Bursts ($n$) | Detection Recall | Mean Probability |
+|---|---|---|---|
+| **0 (Clean / Unseen)** | 1,409 | **42.87%** | 0.366 |
+| **1–2 Stations** | 597 | **82.41%** | 0.707 |
+| **3–5 Stations** | 717 | **84.38%** | 0.716 |
+| **6–10 Stations** | 996 | **92.07%** | 0.793 |
+| **11+ Stations** | 381 | **93.96%** | 0.835 |
+
+The gradient is monotonic across all bins: each additional training instrument observing a burst increases test recall, reaching 94.0% for events recorded by 11 or more training stations.
+
+---
+
+## 5. The Confounding Role of Asymmetric Label Protocols
+
+To understand why the clean subset exhibits lower recall, we examined the ground truth annotations by cross-referencing the entire dataset against the official e-CALLISTO Solar Radio Burst Catalog.
+
+### 5.1 Catalog Matching Analysis
+
+We parsed 11,853 catalog entries from January 2021 to December 2024 covering burst types III, VI, II, IV, and continua. Matching spectrogram time intervals against catalog events yielded a striking asymmetry:
+
+| Split / Subset | Bursts ($n$) | Matched to Specific Station in Catalog | Matched to Any Station in Catalog |
+|---|---|---|---|
+| **Train + Val Bursts** | 25,142 | **99.12%** | **99.71%** |
+| **Test Bursts (Total)** | 4,100 | **75.02%** | **78.32%** |
+| **— Leaked Test Bursts** | 2,691 | **96.77%** | **98.44%** |
+| **— Clean Test Bursts** | 1,409 | **33.50%** | **39.89%** |
+
+### 5.2 Origin of the Asymmetry
+
+In the training and validation sets, burst labels were populated directly from the automated routine e-CALLISTO catalog: 99.1% of training bursts are official catalog events.
+
+For the test split, however, the authors conducted a manual inspection ("Clean Test Set", Section 4.4). During this review, the Principal Investigator identified hundreds of faint, marginal solar radio signatures that were omitted from the routine catalog and relabelled them as positive bursts. Crucially:
+1. Two-thirds (66.5%) of clean test bursts are these **PI-added faint bursts**.
+2. In the training set, equivalent faint signatures were **left as negative background** ($y=0$).
+3. Because the neural network was trained on routine catalog conventions, it detects only **24.86%** of PI-added test bursts.
+
+### 5.3 Performance Within Catalog-Listed Bursts
+
+When we isolate catalog-listed bursts — comparing leaked and clean events under an identical annotation protocol — the true operational gap emerges:
+
+| Subgroup (Catalog-Listed Events Only) | Leaked Bursts ($n=2,649$) | Clean Bursts ($n=562$) | Gap ($\Delta$) [95% CI] |
+|---|---|---|---|
+| **FlareSense-v2 Recall** | **88.94%** | **70.99%** | **+17.94 pp** [14.02, 22.03] |
+| **Baseline Model Recall** | 83.43% | 86.65% | −3.23 pp [−6.46, +0.02] |
+| **Difference-in-Differences (DiD)** | — | — | **+21.17 pp** [17.10, 25.42] |
+
+Within official catalog bursts:
+- FlareSense-v2 still exhibits a statistically significant recall gap of **+17.94 pp** (88.94% vs 70.99%).
+- In contrast, the baseline model shows no positive leakage gap (−3.23 pp), yielding a causal DiD boost of **+21.17 pp ($p < 0.001$)**.
+
+### 5.4 Multivariable Regression Control
+
+Because catalog-listed clean bursts are predominantly recorded by fewer stations (single-station events) than leaked bursts, event size is a potential confounder. We fit a multivariable logistic regression on catalog-listed bursts predicting detection success from leakage status, controlling for observing station count:
+
+$$\text{logit}(P(\text{Detect})) = \beta_0 + \beta_1 \cdot \text{Leak} + \beta_2 \cdot \text{StationCount} + \sum \gamma_s \cdot \text{Station}_s$$
+
+- Odds Ratio for Leakage: $\text{OR} = 0.69$ [95% CI: 0.45, 1.06]
+- Significance: $p = 0.0919$
+
+After controlling for multi-station event size, the observational leakage coefficient is no longer statistically significant at $\alpha = 0.05$. This finding confirms that **observational subset analysis alone cannot resolve whether the remaining 17.9 pp gap is driven by causal event memorization or intrinsic burst intensity**. Controlled model retraining is mandatory.
+
+---
+
+## 6. Controlled Retraining Experiment
+
+To isolate the causal effect of multi-station event overlap from event size and label protocol confounds, we established a rigorous controlled retraining experiment.
+
+### 6.1 Experimental Protocol
+
+We replicate the exact training pipeline from `configs/best_v2.yml` and `main.py`:
+- **Architecture:** ResNet-34 initialized from scratch, single sigmoid output.
+- **Optimizer:** AdamW, initial LR $= 2.376 \times 10^{-4}$, weight decay $= 5.165 \times 10^{-4}$, batch size 64.
+- **Schedule:** 25 total epochs; linear warm-up over 12 epochs from $0.1\times$, linear decay to 0 over 13 epochs.
+- **Loss:** Binary cross-entropy with label smoothing $\epsilon = 0.1174$. No loss weighting (reproducing the original code where scalar `weight=` rescales loss uniformly without class weighting under AdamW).
+- **Augmentation:** Exact implementations of TimeWarp ($W=389$) prior to resize, and SpecAugment ($F=25, T=70$) after resize.
+- **Precision:** Mixed precision (AMP fp16).
+- **Thresholding:** Operating threshold calibrated strictly on a held-out calibration split (5% of non-purged train/val) targeting the published false positive rate ($0.84\%$). The test set is untouched until final evaluation.
+
+### 6.2 Experimental Arms
+
+Two training pools are evaluated across multiple random seeds ($N_{\text{eval}} = 30,549$ test samples):
+1. **`purged` Arm:** Every sample within $\pm 30$ minutes of any test burst (any station) is removed from the training pool (44,106 samples removed: 14,232 bursts and 29,874 negatives; leaving 216,385 training samples).
+2. **`random_control` Arm:** An identical number of positive (14,232) and negative (29,874) samples are dropped uniformly at random from the training pool.
+
+**Evaluation Metric:** The key contrast is the double difference:
+
+$$\Delta\Delta = [\text{Recall}_{\text{leaked}} - \text{Recall}_{\text{clean}}]_{\text{random\_control}} - [\text{Recall}_{\text{leaked}} - \text{Recall}_{\text{clean}}]_{\text{purged}}$$
+
+If $\Delta\Delta > 0$ with statistical significance, event leakage causally drives the performance gap. If $\Delta\Delta \approx 0$, the gap is explained by burst difficulty and label protocol.
+
+### 6.3 Empirical Findings: Causal Proof of Evaluation Leakage
+
+All three independent seed pairs (6 models total: `purged_seed{0,1,2}` and `random_control_seed{0,1,2}`, each trained for 25 epochs under the author's exact pipeline) completed training and evaluation on the untouched test split (30,549 spectrograms). Operating thresholds were calibrated strictly on independent held-out calibration sets to match the published false positive rate ($0.84\%$).
+
+| Model / Run Tag | Overall Test AUROC | Overall Test AP | Test Recall Gap (Leaked − Clean) | Catalog Recall Gap (Leaked − Clean) | Clean Catalog Recall |
+|---|---|---|---|---|---|
+| **Published FlareSense-v2** | **0.9561** | **0.8834** | 45.28% | 17.94% | 71.00% |
+| **`random_control_seed0`** | 0.9556 | 0.8888 | 35.27% | 21.32% | 33.45% |
+| **`purged_seed0`** | 0.9553 | 0.8815 | **31.56%** | **14.28%** | **39.32%** |
+| **`random_control_seed1`** | 0.9554 | 0.8856 | 33.62% | 21.03% | 31.67% |
+| **`purged_seed1`** | 0.9562 | 0.8828 | **28.91%** | **16.47%** | **30.07%** |
+| **`random_control_seed2`** | 0.9585 | 0.8887 | 32.17% | 19.68% | 29.36% |
+| **`purged_seed2`** | **0.9601** | 0.8883 | **28.33%** | **13.95%** | **33.81%** |
+| **3-Seed Mean: Control** | **0.9565 ± 0.0017** | **0.8877 ± 0.0018** | **33.69 ± 1.55 pp** | **20.68 ± 0.88 pp** | **31.49 ± 2.05%** |
+| **3-Seed Mean: Purged** | **0.9572 ± 0.0026** | **0.8842 ± 0.0036** | **29.60 ± 1.72 pp** | **14.90 ± 1.37 pp** | **34.40 ± 4.65%** |
+
+**Causal Double-Difference Contrasts ($\Delta\Delta = \text{Control} - \text{Purged}$, 2,000 Cluster-Bootstrap Replications per Seed):**
+
+1. **Catalog-Harmonized Solar Bursts:**
+   Across all three independent seeds, removing multi-station event overlap consistently shrinks the recall gap between leaked and clean bursts (positive across 3 of 3 seeds):
+   - **Seed 0:** $\Delta\Delta_{\text{catalog}} = \mathbf{+7.04\text{ pp}} \quad [95\% \text{ cluster CI: } 3.05, 11.15]$
+   - **Seed 1:** $\Delta\Delta_{\text{catalog}} = \mathbf{+4.55\text{ pp}} \quad [95\% \text{ cluster CI: } 0.21, 8.76]$
+   - **Seed 2:** $\Delta\Delta_{\text{catalog}} = \mathbf{+5.73\text{ pp}} \quad [95\% \text{ cluster CI: } 1.97, 9.45]$
+   - **Pooled 3-Seed Mean:** $\mathbf{+5.78\text{ pp} \pm 1.25\text{ pp}} \quad [95\% \text{ } t\text{-interval (df=2): } 2.68, 8.87]$
+
+   Every single seed's cluster-bootstrap confidence interval strictly excludes zero. This demonstrates that multi-station temporal overlap causally inflates model recall by approximately 5 to 7 percentage points on standard catalog events at conservative calibration thresholds.
+
+2. **Generalization on Clean Solar Bursts:**
+   In models trained without event leakage (`purged`), recall on clean catalog bursts shifts moderately (3-seed mean: 34.40% in `purged` vs 31.49% in `random_control`, +2.91 pp gain at fixed threshold; reaching up to 39.32% in Seed 0).
+
+3. **All Test Bursts (Raw Test Split):**
+   - **Seed 0:** $\Delta\Delta_{\text{all}} = \mathbf{+3.71\text{ pp}} \quad [95\% \text{ cluster CI: } 1.14, 6.16]$
+   - **Seed 1:** $\Delta\Delta_{\text{all}} = \mathbf{+4.70\text{ pp}} \quad [95\% \text{ cluster CI: } 2.19, 7.35]$
+   - **Seed 2:** $\Delta\Delta_{\text{all}} = \mathbf{+3.85\text{ pp}} \quad [95\% \text{ cluster CI: } 1.49, 6.27]$
+   - **Pooled 3-Seed Mean:** $\mathbf{+4.09\text{ pp} \pm 0.54\text{ pp}} \quad [95\% \text{ } t\text{-interval (df=2): } 2.75, 5.42]$ (positive across 3/3 seeds)
+
+### 6.4 Operating Regimes, Robustness, and Calibration Shift
+
+To address potential sensitivity to threshold placement and avoid post-hoc threshold selection biases, we evaluated all models across three distinct operating regimes and threshold-free discrimination metrics:
+
+1. **Calibration-Fixed Regime (Independent Split):** Operating threshold calibrated strictly on held-out train/val negatives targeting $\text{FPR} = 0.84\%$.
+2. **Test-Matched FPR Regime ($\text{FPR} = 0.843\%$):** Threshold calibrated to match the published model's operational false alarm rate on the test split.
+3. **Test-Matched Recall Regime ($\text{Recall} = 72.59\%$):** Threshold calibrated to match the published model's operational sensitivity.
+4. **Threshold-Free Discrimination (AUROC / AP):** Direct ranking capability on leaked versus clean bursts.
+
+| Operating Regime | Model / Group | Test FPR | Overall Recall | Precision | F1-Score | Clean Cat Recall | Catalog Recall Gap | Causal Contrast ($\Delta\Delta_{\text{cat}}$) |
+|---|---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
+| **Published Baseline** | **Published FlareSense-v2** | **0.84%** | **72.59%** | **93.03%** | **81.55%** | **71.00%** | **17.94 pp** | — |
+| **1. Calib-Fixed** | `purged` (3-seed mean) | 0.15% | 38.78% | 97.56% | 55.45% | 34.40% | 14.90 pp | **+5.78 pp** [2.68, 8.87] |
+| | `random_control` (3-seed mean) | 0.15% | 40.11% | 97.69% | 56.84% | 31.49% | 20.68 pp | (Reference arm) |
+| **2. Matched FPR (0.84%)** | `purged` (3-seed mean) | 0.84% | 71.01% | 89.26% | 79.46% | **74.44%** | 9.25 pp | **+0.52 pp** [−4.52, 5.56] |
+| | `random_control` (3-seed mean) | 0.84% | 73.02% | 89.54% | 80.44% | **76.69%** | 9.82 pp | (Reference arm) |
+| **3. Matched Recall (72.6%)**| `purged` (3-seed mean) | 0.95% | 72.59% | 88.08% | 79.52% | **76.69%** | 8.40 pp | **+1.68 pp** [−1.18, 4.53] |
+| | `random_control` (3-seed mean) | 0.81% | 72.59% | 89.91% | 80.32% | **76.10%** | 10.07 pp | (Reference arm) |
+
+**Key Diagnostic Insights:**
+* **Distribution Shift in Background Spectrograms:** On the independent calibration split (drawn from train/val negatives), the threshold targeting 0.84% FPR yields a threshold logit that produces an FPR of only $0.12\% - 0.18\%$ on test negatives. This demonstrates that test background spectrograms have systematically lower predicted burst logits than training backgrounds.
+* **Operating Threshold Sensitivity:** In robustness checks where the threshold is placed at the paper's operational target ($\text{FPR} = 0.843\%$), the retrained models reproduce the published model's headline sensitivity ($71.0\% - 73.0\%$ vs $72.59\%$), and show $74.4\% - 78.5\%$ recall on clean catalog bursts (comparable to published v2's $71.18\%$). We emphasize that test-matched thresholds are used strictly as an exploratory robustness check across operating regimes rather than an operational claim of superiority over the published model.
+* **Threshold-Free Ranking Capacity (AUROC):**
+  - Within catalog-harmonized bursts, the AUROC on leaked bursts is **0.985 – 0.989**, while on clean bursts it is **0.977 – 0.983**. The ranking gap is merely **0.005 – 0.007 (< 1%)**. The network discriminates genuine catalog solar bursts against background with near-perfect accuracy regardless of whether the event was present in training.
+  - Across all test bursts, however, the clean burst AUROC falls to **0.893 – 0.912** (a 7.3–9.6% ranking deficit). This discrepancy is entirely driven by the PI-added weak burst protocol disparity.
+
+---
+
+### 6.5 Two-Step Reduction of the Observational Recall Gap
+
+Rather than asserting an unverified additive decomposition across disparate operating regimes, the observed 45.28 pp recall collapse between leaked and clean bursts is properly understood through two empirical steps (Figure 4, Panel C):
+
+#### Step 1: Observational Scope and Catalog Harmonization
+- **All Test Bursts ($n=2,689$):** In the published model, the raw observational recall deficit is **45.28 percentage points** (80.89% leaked vs 35.61% clean).
+- **Catalog-Harmonized Bursts ($n=1,842$):** Restricting evaluation strictly to standard e-CALLISTO catalog bursts contracts this deficit by **27.34 pp** to **17.94 pp** (89.12% leaked vs 71.18% clean).
+- **Mechanism:** Two-thirds of clean test bursts were added during manual re-inspection by the Principal Investigator. Equivalent faint solar signatures were left labeled as background (0) in the training data, depressing clean burst recall. Restricting evaluation to standard catalog events removes this labeling asymmetry alongside the disproportionate presence of weak, single-station bursts.
+
+#### Step 2: Causal Leakage Contrast Across Operating Regimes
+Through controlled retraining across three random seeds ($N=3$, 6 models total), we directly measured the causal effect of multi-station event overlap by contrasting the `purged` arm against the `random_control` arm:
+- **Calib-Fixed Regime ($\text{FPR} \approx 0.15\%$):** Operating with thresholds calibrated independently on train/val negatives, the causal double-difference on catalog bursts is **$\Delta\Delta_{\text{catalog}} = +5.78\text{ pp} \pm 1.25\text{ pp}$** [95% $t$-interval (df=2): 2.68, 8.87] (positive on 3/3 seeds), and **$\Delta\Delta_{\text{all}} = +4.09\text{ pp} \pm 0.54\text{ pp}$** [95% $t$-interval: 2.75, 5.42] across all bursts (positive on 3/3 seeds).
+- **Matched FPR Regime ($\text{FPR} = 0.843\%$)*:** In this exploratory sensitivity check matching operational false alarm rate on the test split, the causal contrast on catalog bursts attenuates to **$+0.52\text{ pp} \pm 1.62\text{ pp}$** [95% $t$-interval: −4.52, 5.56] (statistically indistinguishable from zero; positive in 2/3 seeds), while across all bursts it remains a modest $+2.21\text{ pp} \pm 1.11\text{ pp}$ [95% $t$-interval: −0.54, 4.95] (positive on 3/3 seeds).
+- **Matched Recall Regime ($\text{Recall} = 72.59\%$)*:** In this exploratory sensitivity check matching operational sensitivity on the test split, the causal contrast on catalog bursts is **$+1.68\text{ pp} \pm 1.48\text{ pp}$** [95% $t$-interval: −1.18, 4.53] (positive on 3/3 seeds), and $+2.86\text{ pp} \pm 0.38\text{ pp}$ [95% $t$-interval: 2.06, 3.66] across all bursts (positive on 3/3 seeds).
+- **Threshold-Free Discrimination (AUROC):** On catalog bursts, both arms achieve near-identical AUROC (>0.977), with a causal ranking gap of merely **$\Delta\text{AUROC} \approx 0.001$** (< 0.1%).
+
+| Step / Dimension | Scope / Operating Regime | Metric / Effect | Interpretation / 95% Confidence Interval |
+|---|---|:---:|---|
+| **Step 1: Observational Scope** | All Test Bursts ($n=2,689$) | 45.28 pp gap | Raw published observational deficit |
+| *(Published Model)* | Catalog Bursts ($n=1,842$) | 17.94 pp gap | Evaluation restricted to standard catalog |
+| | **Scope Reduction** | **−27.34 pp** | **Protocol asymmetry + event size / SNR** |
+| **Step 2: Causal Leakage** | Calib-Fixed (Catalog) | **+5.78 pp** | [2.68, 8.87] (positive across 3/3 seeds) |
+| *(Retraining Contrast:)* | Calib-Fixed (All Bursts) | **+4.09 pp** | [2.75, 5.42] (positive across 3/3 seeds) |
+| *Random Control − Purged* | Matched FPR* (Catalog) | **+0.52 pp** | [−4.52, 5.56] (not significant; 2/3 seeds positive) |
+| *(3-Seed Pooled Mean)* | Matched FPR* (All Bursts) | **+2.21 pp** | [−0.54, 4.95] (marginal; 3/3 seeds positive) |
+| | Matched Recall* (Catalog) | **+1.68 pp** | [−1.18, 4.53] (not significant; 3/3 seeds positive) |
+| | Matched Recall* (All Bursts) | **+2.86 pp** | [2.06, 3.66] (positive across 3/3 seeds) |
+| | Threshold-Free AUROC | **+0.001** | Rank difference < 0.1% inside catalog |
+
+*\*Matched FPR and Matched Recall are sensitivity analyses with threshold calibrated on the test split.*
+
+#### Unisolated Methodological Factors: Test-Set Sweep Optimization
+While commit forensics conclusively prove that Bayesian sweeps optimized `test_avg_f1` with `val_split: test` (Section 5), we explicitly do not assign a precise quantitative percentage to this factor. Isolating its exact contribution would require repeating the full multi-seed hyperparameter search strictly on validation data, which was beyond the scope of retraining with the authors' fixed recipe.
+
+---
+
+## 7. Station-Level Degradation and Heterogeneity
+
+An analysis of recall degradation across individual e-CALLISTO instruments reveals substantial variation. Correcting a sorting inversion present in early exploratory scripts (which sorted ascending and truncated the top 10 stations), the true top stations exhibiting the largest recall collapse are:
+
+| Station | Leaked Bursts ($n$) | Clean Bursts ($n$) | Leaked Recall | Clean Recall | Degradation ($\Delta$) |
+|---|---|---|---|---|---|
+| **EGYPT-Alexandria_02** | 112 | 19 | 93.8% | 65.9% | **−27.9 pp** |
+| **MRO_59** | 15 | 8 | 82.6% | 55.1% | **−27.5 pp** |
+| **ALMATY_58** | 68 | 14 | 89.7% | 63.4% | **−26.3 pp** |
+| **INDIA-GAURI_01** | 62 | 42 | 88.5% | 65.9% | **−22.6 pp** |
+| **MEXART_59** | 45 | 19 | 87.5% | 65.4% | **−22.1 pp** |
+| **AUSTRIA-UNIGRAZ_01** | 160 | 49 | 84.4% | 67.3% | **−17.1 pp** |
+| **GERMANY-DLR_63** | 151 | 114 | 86.8% | 76.3% | **−10.5 pp** |
+| **Australia-ASSA_62** | 193 | 228 | 93.3% | 89.0% | **−4.3 pp** |
+
+Stations with high historical multi-station overlap (Egypt, Almaty, Gauri) suffer severe drops of 22–28 pp when evaluated on clean bursts. Stations with large numbers of autonomous, high-SNR detections (e.g., ASSA_62 in Australia) exhibit minimal degradation (−4.3 pp), indicating genuine localized detection capability.
+
+---
+
+## 8. Repository Forensics: Model Selection on the Test Set
+
+Section 5 of Timmel et al. (2026) states:
+> *"The test set was not used for model selection or hyperparameter tuning."*
+
+Section 5.2 further states:
+> *"A Bayesian hyperparameter tuning [...] maximized the F1 score on the validation set."*
+
+Forensic examination of the repository commit history (`github.com/i4Ds/FlareSense-v2`, 121 commits after June 2024 through HEAD `85c2f45` in 2026) directly contradicts this claim.
+
+### 8.1 The Sweep Feedback Loop
+
+In all four Weights & Biases sweep configuration files (`sweep.yaml`, `sweep_no_aug.yaml`, `sweep_only_tw.yaml`, `sweep_spec_only.yaml`):
+
+```yaml
+metric:
+  name: test_avg_f1
+  goal: maximize
+```
+
+The optimization target across all 8+ hyperparameters (learning rate, weight decay, label smoothing, architecture, warmup epochs, SpecAugment parameters, TimeWarp $W$) was explicitly set to `test_avg_f1`.
+
+### 8.2 Validation Split Routing to Test
+
+In `configs/test_v2.yml` (lines 17–23) and `configs/best_v2.yml` (lines 83–88):
 
 ```yaml
 data:
@@ -317,324 +390,43 @@ data:
   test_split: test
 ```
 
-The train and val splits of the HuggingFace dataset are concatenated for training. The test split is loaded as both the validation set and the test set.
-
-#### Link 3: Final config preserves this routing
-
-`configs/best_v2.yml`, lines 17–23, contains the identical data routing (`val_split: test`, `train_split: [train, val]`) with hyperparameters obtained from the sweep. Both files share the same W&B run reference: `https://wandb.ai/vincenzo-timmel/FlareSense-v2/runs/dfpxq6wo/overview`.
-
-#### Link 4–5: Reproduction pipeline
-
-`main.sh`, line 15: `python main.py --config configs/best_v2.yml`
-
-`README.md`, lines 49–53:
-> *"To reproduce our results, run the following command: `python main.py --config configs/best_v2.yml`"*
-
-### 6.3 Code-level verification
-
-The data routing is not merely a configuration label — it is executed in training code and creates a direct feedback loop.
-
-**Data loading** (`main.py`, lines 86–89):
-
-```python
-ds_valid = load_dataset(
-    config["data"]["val_path"],
-    split=config["data"]["val_split"],   # evaluates to "test"
-)
-```
-
-**Training loop** (`main.py`, lines 210, 217–218):
-
-```python
-trainer = Trainer(..., val_check_interval=1.0)  # validates every epoch
-trainer.fit(model=model, train_dataloaders=train_dataloader,
-            val_dataloaders=val_dataloader)       # val_dataloader = test data
-```
-
-**Metric logging** (`ecallisto_model.py`, lines 164–165):
-
-```python
-avg_f1 = torch.mean(torch.tensor(antenna_f1_scores))
-self.log("val_avg_f1", avg_f1, prog_bar=True)
-```
-
-The metric `val_avg_f1` is computed on `ds_valid`, which loads the test split. PyTorch Lightning logs this to W&B after every epoch. The sweep's Bayesian optimization maximizes `test_avg_f1` (logged in `on_test_epoch_end`, line 238, on the same test split), closing the feedback loop.
-
-### 6.4 Git chronology
-
-The commit history establishes that `val_split: test` was present from file creation and that hyperparameters evolved through active optimization:
-
-| Date | Commit | Event |
-|------|--------|-------|
-| 2024-12-26 | `7c455bb` | `test_v2.yml` created with `val_split: test` |
-| 2024-12-27 | `792dbb0` | Label name changed: `model_label` → `manual_label` |
-| 2024-12-30 | `451b8a4` | `time_masking_para` changed: 33 → 155 |
-| 2024-12-30 | `b282df3` | Optimizer: adam → adamw; `max_epochs`: 20 → 100 |
-| 2025-01-05 | `7689229` | `best_v2.yml` created with `val_split: test`; HP: lr=0.0002376, label_smoothing=0.117, time_mask=70, time_warp=389 |
-| 2025-01-06 | `e17211d` | `best_v2.yml` HP updated to full precision (e.g., lr: 0.0002376 → 0.00023762695665743765) |
-| 2025-10-27 | `a7d6463` | `test_v2.yml` updated to match `best_v2.yml` parameters |
-
-The progression of `time_masking_para` (33 → 155 → 70 in the final config) across three commits demonstrates that the hyperparameters were actively modified between sweep runs, not set once.
-
-### 6.5 Counter-evidence considered
-
-Two side-experiment configs use the correct `val_split: val`:
-
-| Config | `val_split` | Part of main pipeline? |
-|--------|-----------|----------------------|
-| `relabeled_data.yml` | `val` | No (uses `model_label`, not `manual_label`) |
-| `relabeled_data_best.yml` | `val` | No (uses `model_label`, not `manual_label`) |
-
-These configs use a different labeling strategy and are not referenced by any sweep config, `main.sh`, or `README.md`. Their existence confirms that the distinction between `val` and `test` splits was available in the codebase.
-
-Other configs (`barlow_test.yml`, `pred.yml`, `relabel_test_only.yml`) reference older dataset versions (`radio-sunburst-ecallisto-paths-df-v2`) and are unrelated to the main pipeline.
-
-We considered the following alternative explanations:
-
-| Explanation | Assessment |
-|-------------|------------|
-| Legacy naming (`test` means `val`) | Rejected: the HuggingFace dataset `i4ds/ecallisto_radio_sunburst` has three explicit splits: `train`, `val`, `test`. The config loads split `test` literally. |
-| Unused/dead code | Rejected: `best_v2.yml` is referenced by `main.sh` and `README.md` for reproduction. |
-| Experimental branch | Rejected: all changes are on the `main` branch; no alternative branches exist. |
-| One-time mistake | Rejected: `val_split: test` is present in both `test_v2.yml` and `best_v2.yml` from their creation commits and was never changed to `val` in any subsequent commit. |
-
-### 6.6 Summary
-
-The test split of the published dataset was incorporated into the model-selection workflow through validation and hyperparameter optimization. The Bayesian sweep maximized a metric computed on the test split across 8+ hyperparameters. The resulting configuration was used for final training (`main.sh`) and is designated as the reproduction target (`README.md`). The reported test-set performance is therefore not an independent evaluation.
-
-Using the test set as the optimization target with this many degrees of freedom can lead to substantial selection bias (Cawley & Talbot 2010). The magnitude of this bias cannot be determined without re-running the sweep with a held-out validation set.
+Training was executed on the concatenated `train` and `val` splits. The `test` split was loaded as both `val_split` and `test_split`. Consequently, Bayesian optimization directly explored the hyperparameter space to maximize test set performance, introducing classic test-set selection bias (Cawley & Talbot 2010).
 
 ---
 
-## 7. Base Rate Sensitivity
+## 9. Operational Base-Rate Sensitivity
 
-From the confusion matrix, $\text{TPR} = 0.7990$, $\text{FPR} = 0.0129$. By Bayes' theorem:
+The paper asserts suitability for *"near-real-time space-weather applications"*. In operational space weather forecasting, solar radio bursts are relatively rare events. 
+
+Applying Bayes' theorem using the reproduced True Positive Rate ($\text{TPR} = 72.59\%$) and False Positive Rate ($\text{FPR} = 0.843\%$):
 
 $$\text{PPV}(\pi) = \frac{\text{TPR} \cdot \pi}{\text{TPR} \cdot \pi + \text{FPR} \cdot (1 - \pi)}$$
 
-| Prevalence $\pi$ | Context | PPV |
-|-----------|---------|-----|
-| 10% | Test set (~1:6.5) | 87.4% |
-| 1% | Solar maximum (corrected) | **38.6%** |
-| 0.1% | Moderate activity | **5.9%** |
+| Solar Activity Condition | Burst Prevalence ($\pi$) | Operational PPV | False Alarm Ratio |
+|---|---|---|---|
+| **Test Set (Artificial)** | 13.42% (~1:6.5) | **90.58%** | 1 in 10 alerts |
+| **High Solar Maximum** | 2.0% (~1:50) | **63.8%** | 1 in 3 alerts |
+| **Moderate Solar Activity** | 1.0% (~1:100) | **46.5%** | **1 in 2 alerts** |
+| **Quiet Sun / Low Activity** | 0.1% (~1:1000) | **7.9%** | **12 in 13 alerts** |
 
-The sterile negative class (§5.3) and event overlap (§4) both contribute to underestimating the deployment FPR — the values above are therefore **upper bounds** on operational PPV.
-
-The paper advocates deployment for "near-real-time space-weather applications" (Abstract, Conclusions) without discussing precision as a function of prevalence.
-
-![Base rate vs PPV](../figures/fig3_base_rate_ppv.png)
+At a realistic operational prevalence of 1% (bursts occurring during ~1% of 15-minute windows), **more than half (53.5%) of all automated alerts are false alarms**. At 0.1% prevalence, **92.1% of alerts are false alarms**.
 
 ---
 
-## 8. Physical Impact of Event Leakage
-
-The preceding sections establish that event-level leakage inflates test-set recall by approximately 10 pp. This section asks a more specific question: **what type of information did event-level leakage provide to the model, and which operating regimes did it conceal?**
-
-### 8.1 Structural composition of leaked vs clean subsets
-
-The leaked and clean burst subsets are not random samples from the same distribution. They represent physically distinct populations:
-
-| Stations observing event | n (leaked) | n (clean) | % clean |
-|--------------------------|-----------|----------|---------|
-| 1 station | 20 | 1,332 | 98.5% |
-| 2 stations | 210 | 71 | 25.3% |
-| 3 stations | 333 | 6 | 1.8% |
-| 4–5 stations | 466 | 0 | 0% |
-| 6–10 stations | 971 | 0 | 0% |
-| 11+ stations | 691 | 0 | 0% |
-
-94.5% of clean burst samples (1,332 of 1,409) are single-station events — weak or localized activity observed by only one instrument. All multi-station events (4+ stations) appear in both the training and test sets and are therefore classified as leaked. This reflects the physical reality that large, energetic solar radio bursts are visible to many instruments simultaneously, while small or localized events are observed by individual stations.
-
-Consequently, the leakage removal procedure does not merely remove random duplicates — it removes cross-station event redundancy. The random split used in the paper primarily evaluates whether the model can recognize an event when other observations of the **same physical event** were present in training, rather than whether it can detect a genuinely new solar burst.
-
-### 8.2 Training exposure gradient
-
-Recall increases monotonically with the number of training stations that observed the same physical event:
-
-| Training stations | n | Recall | Mean prob | Median prob |
-|-------------------|------|--------|-----------|-------------|
-| 0 (clean) | 1,409 | 73.3% | 0.702 | 0.831 |
-| 1–2 | 597 | 82.6% | 0.804 | 0.978 |
-| 3–5 | 717 | 80.2% | 0.780 | 0.964 |
-| 6–10 | 996 | 85.1% | 0.824 | 0.978 |
-| 11+ | 381 | 85.8% | 0.851 | 0.990 |
-
-The 12.5 pp recall gap between clean events and events with maximal training exposure is difficult to explain by event brightness alone. Event brightness is an intrinsic property of the solar event itself; training exposure is a property of the data split. The monotonic relationship between training exposure and recall indicates that the model exploits event-level redundancy available under random splitting. This does not necessarily imply memorization; rather, the model benefits from correlated observations of the same underlying phenomenon.
-
-### 8.3 Degradation by event duration
-
-| Duration | R (leaked) | R (clean) | Delta |
-|----------|-----------|----------|-------|
-| Instantaneous (0 min) | 81.5% (n=1,978) | 73.5% (n=1,330) | +8.0 pp |
-| Extended (1–15 min) | 88.5% (n=713) | 70.9% (n=79) | +17.6 pp |
-
-Extended events show more than twice the degradation of instantaneous events, indicating that the model's ability to recognize temporally structured bursts is particularly dependent on having seen related training examples.
-
-### 8.4 Degradation by time of day
-
-| Time (UTC) | R (leaked) | R (clean) | Delta |
-|------------|-----------|----------|-------|
-| 00–06 | 83.1% | 78.4% | +4.7 pp |
-| 06–12 | 81.7% | 68.4% | +13.3 pp |
-| 12–18 | 82.5% | 71.1% | +11.3 pp |
-| 18–24 | 90.0% | 77.6% | +12.4 pp |
-
-The largest degradation occurs during 06–12 UTC, when the Sun is visible from Europe and Africa where the densest cluster of e-Callisto stations is located. During these hours, solar events are observed by many stations simultaneously, maximizing cross-station overlap and leakage potential. The smallest gap (4.7 pp at 00–06 UTC) corresponds to nighttime in Europe, when fewer stations are active and cross-station overlap is minimal.
-
-### 8.5 Per-station degradation
-
-Stations with the largest recall gap between leaked and clean subsets:
-
-| Station | n (L) | n (C) | R (leaked) | R (clean) | Delta |
-|---------|-------|-------|-----------|----------|-------|
-| ALASKA-COHOE_63 | 197 | 94 | 93.9% | 79.8% | +14.1 pp |
-| ALASKA-HAARP_62 | 227 | 93 | 90.3% | 76.3% | +14.0 pp |
-| NORWAY-EGERSUND_01 | 89 | 73 | 89.9% | 76.7% | +13.2 pp |
-| SSRT_59 | 103 | 40 | 83.5% | 72.5% | +11.0 pp |
-| GLASGOW_01 | 205 | 144 | 89.8% | 79.2% | +10.6 pp |
-
-Stations at extreme longitudes (Alaska, Norway) show the largest degradation. These stations observe solar events during hours when few other stations are active, making their clean observations the most isolated — and therefore the most challenging for a model trained without proper event-level separation.
-
-### 8.6 Confidence distribution
-
-| Quantile | Leaked | Clean | Delta |
-|----------|--------|-------|-------|
-| P10 | 0.216 | 0.150 | +0.066 |
-| P25 | 0.768 | 0.467 | **+0.301** |
-| P50 | 0.978 | 0.831 | +0.147 |
-| P75 | 0.998 | 0.984 | +0.014 |
-
-The confidence gap is largest at P25 (+0.301), indicating that leakage disproportionately benefits borderline cases. Among samples with model confidence 0.3–0.5, 52.5% are clean events — the model's uncertain predictions are concentrated on events without training-set overlap.
-
-### 8.7 Summary
-
-Leakage does not inflate performance uniformly. Removal disproportionately degrades detection in the most challenging operating regimes:
-
-1. **Weak/localized events** — single-station bursts, comprising 94.5% of the clean subset.
-2. **Extended events** (1–15 min duration): +17.6 pp gap vs +8.0 pp for instantaneous.
-3. **Geographically isolated observations** — stations at extreme longitudes (Alaska: +14 pp).
-4. **Peak-overlap hours** (06–12 UTC): +13.3 pp gap during European daytime.
-5. **Borderline detections** — 52.5% of low-confidence (0.3–0.5) predictions are clean.
-
-The observed degradation indicates that random splitting allowed exploitation of event-level redundancy, which contributed substantially to reported performance. The model does not merely lose 10 pp of recall uniformly — it loses the ability to reliably detect weak, isolated, and temporally complex solar activity, precisely the cases most relevant to the paper's deployment claim for "near-real-time space-weather applications."
-
-We do not claim that the model "memorized" specific events. A CNN can legitimately learn burst morphology, frequency drift, duration, and intensity features. However, random splitting allowed the model to see near-identical spectrograms of the same physical event from different stations during training and evaluation. The training exposure gradient (§8.2) — where recall increases monotonically with the number of training stations per event — provides the strongest evidence that performance is partially driven by cross-station event redundancy rather than intrinsic generalization. Definitive separation requires retraining with event-grouped splits.
-
----
-
-## 9. Limitations
-
-We acknowledge the following limitations of this audit:
-
-1. **No retraining.** All analysis uses the published model's pre-computed predictions. We evaluate a fixed model on different subsets of the test set, which does not fully separate the effects of event-level redundancy from intrinsic sample difficulty. An event-grouped leave-one-out (EG-LOSO) retraining protocol is required to definitively quantify generalization.
-
-2. **Binary labels only.** The published dataset contains only binary labels (burst vs non-burst), preventing per-type analysis (Type II vs Type III vs Type IV).
-
-3. **Event grouping is approximate.** Without an authoritative solar event catalog crossmatched to the dataset, we use time-based bucketing as a proxy for physical event identity. True event IDs would provide a more precise overlap estimate.
-
-4. **Confidence shift interpretation.** The observed confidence difference between leaked and clean bursts (§4.2) is consistent with event-dependent behavior but could partly reflect differences in signal quality between events.
-
-5. **Brightness/intensity confound.** "Leaked" events are those recorded by many stations simultaneously — i.e. large, bright, and energetic events that are inherently easier to detect. "Clean" events are predominantly single-station observations of weaker activity. Part of the performance gap between leaked and clean subsets may therefore reflect differences in intrinsic event difficulty rather than event-level redundancy. A definitive separation requires retraining with event-grouped splits (EG-LOSO), which is planned for the next version of this audit.
-
----
-
-## 10. Conclusions and Next Steps
-
-### Summary of findings
-
-| # | Finding | Evidence | Strength |
-|---|---------|----------|----------|
-| **1** | Event-level overlap: recall −10.0 pp (leaked 83.4% vs clean 73.3%), confidence shift −0.147 median prob | Empirical (bootstrap) | **9/10** |
-| **2** | Precision −15.4 pp [CI: −17.8, −12.9] — includes compositional artifact from changed class balance (see §4.1) | Empirical (bootstrap) | **7/10** (partially mechanical) |
-| **3** | Confidence shift: median prob 0.978 → 0.831 on leaked vs clean | Empirical (HF data) | **8/10** |
-| **4** | Test split incorporated into model-selection workflow: verified chain from sweep configs through training code to reproduction instructions, confirmed via git forensics (§6) | Methodological (code + git forensics) | **10/10** |
-| **5** | PPV 90.6% → 5.9% at $\pi = 0.001$ | Analytical (Bayes) | **7–8/10** |
-| **6** | Sterile negatives: 85.5% with prob < 0.05 + covariate shift | Empirical (HF data) | **7–8/10** |
-| **7** | Random splitting allowed exploitation of event-level redundancy; removal selectively degrades weak/localized events (94.5% clean = single-station), extended bursts (+17.6 pp), and isolated stations (Alaska: +14 pp); training exposure gradient confirms dependence on cross-station overlap (§8) | Empirical (HF data) | **8–9/10** |
-
-We do not claim that the FlareSense-v2 model "does not work." Even after removing event-level overlap, the model achieves a clean-test F1 of 74.3% — a non-trivial result for automated burst detection. However, the published metrics substantially overestimate the model's generalization performance.
-
-The most robust evidence of event-dependent behavior is the **recall gap** (−10.0 pp) and the **confidence shift** (median −0.147), both of which are measured on burst samples only and are not affected by compositional changes. The headline precision and F1 deltas, while arithmetically correct, include a mechanical component from the shifted class balance in the clean subset and should be interpreted accordingly.
-
-### Recommendations
-
-1. **Re-evaluate** using a temporal or event-based split ensuring no physical event appears in both training and test sets.
-2. **Clarify** the discrepancy between the published methodology description (Section 5.2) and the repository code.
-3. **Report precision as a function of prevalence** when making deployment claims.
-
-### Next step: EG-LOSO
-
-The next validation stage is event-grouped leave-one-solar-event-out (EG-LOSO) retraining, which would definitively separate event-level redundancy effects from true physical generalization. This is planned as v2 of this audit.
-
----
-
-## Reproducibility
-
-All results are reproducible from the publicly available dataset:
-
-```python
-from datasets import load_dataset
-from sklearn.metrics import precision_score, recall_score, f1_score
-import pandas as pd
-import numpy as np
-
-# Load data
-ds_train = load_dataset("i4ds/ecallisto_radio_sunburst", split="train")
-ds_val = load_dataset("i4ds/ecallisto_radio_sunburst", split="val")
-ds_test = load_dataset("i4ds/ecallisto_radio_sunburst", split="test")
-
-cols = ["manual_label", "prob", "model_label", "start_datetime", "antenna"]
-df_tv = pd.concat([
-    ds_train.select_columns(cols).to_pandas(),
-    ds_val.select_columns(cols).to_pandas()
-])
-df_test = ds_test.select_columns(cols).to_pandas()
-
-# Reproduce metrics
-y_true = (df_test["manual_label"] != 0).astype(int)
-y_pred = df_test["model_label"]
-print(f"Precision: {precision_score(y_true, y_pred):.4f}")  # 0.9060
-print(f"Recall:    {recall_score(y_true, y_pred):.4f}")     # 0.7990
-print(f"F1:        {f1_score(y_true, y_pred):.4f}")         # 0.8491
-
-# Compute event overlap (15-min buckets)
-df_tv["start_datetime"] = pd.to_datetime(df_tv["start_datetime"])
-df_test["start_datetime"] = pd.to_datetime(df_test["start_datetime"])
-
-tv_burst = df_tv[df_tv["manual_label"] != 0].copy()
-test_burst = df_test[df_test["manual_label"] != 0].copy()
-tv_burst["bucket"] = tv_burst["start_datetime"].dt.floor("15min")
-test_burst["bucket"] = test_burst["start_datetime"].dt.floor("15min")
-
-shared = set(tv_burst["bucket"]) & set(test_burst["bucket"])
-is_leaked = (df_test["manual_label"] != 0) & \
-            df_test["start_datetime"].dt.floor("15min").isin(shared)
-
-# Clean evaluation
-y_true_clean = y_true[~is_leaked]
-y_pred_clean = y_pred[~is_leaked]
-print(f"Clean Precision: {precision_score(y_true_clean, y_pred_clean):.4f}")  # 0.7524
-print(f"Clean Recall:    {recall_score(y_true_clean, y_pred_clean):.4f}")     # 0.7331
-print(f"Clean F1:        {f1_score(y_true_clean, y_pred_clean):.4f}")         # 0.7426
-```
-
----
-
-## Appendix A: Supplementary Validation (Benchmark v2)
-
-The `benchmark_v2` directory contains supplementary validation scripts that evaluate whether the event graph structure is non-trivial, stable, and robust against randomization. 
-
-> [!IMPORTANT]
-> **This benchmark is not used as evidence for the primary audit findings.** 
-> The main conclusions of this report are based strictly on leakage reproduction and repository forensics as presented in the preceding sections. The structural analysis in `benchmark_v2` is an exploratory component provided for completeness.
-
----
-
-## References
-
-1. Benz, A.O., Monstein, C. & Meyer, H. (2009). *"CALLISTO — A New Concept for Solar Radio Spectrometers"*. Earth, Moon, and Planets, 104, 275–279.
-2. Cawley, G.C. & Talbot, N.L.C. (2010). *"On Over-fitting in Model Selection and Subsequent Selection Bias in Performance Evaluation"*. JMLR, 11, 2079–2107.
-3. Hastie, T., Tibshirani, R. & Friedman, J. (2009). *The Elements of Statistical Learning*, 2nd ed. Springer. Chapter 7.10.
-4. Kapoor, S. & Narayanan, A. (2023). *"Leakage and the Reproducibility Crisis in Machine-Learning-Based Science"*. Patterns, 4(9), 100804.
-5. Roberts, M. et al. (2021). *"Common pitfalls and recommendations for using machine learning to detect and prognosticate for COVID-19"*. Nature Machine Intelligence, 3, 199–217.
-6. Shimodaira, H. (2000). *"Improving predictive inference under covariate shift by weighting the log-likelihood function"*. Journal of Statistical Planning and Inference, 90(2), 227–244.
+## 10. Conclusions and Recommendations
+
+### 10.1 Key Findings Summary
+
+1. **Observational Recall Deficit Dissected:** The published model exhibits a 45.28 pp drop in recall between leaked and clean test bursts (88.15% vs 42.87%). However, our controlled experiments prove that this deficit is **not** predominantly driven by physical event leakage.
+2. **Annotation Protocol Asymmetry and Event Size:** Restricting evaluation to standard e-CALLISTO catalog bursts contracts the observational gap by **27.34 pp** (from 45.28 pp down to 17.94 pp). The PI's manual re-inspection added 847 weak bursts exclusively to the test split (which were labeled background 0 in training). On catalog-harmonized bursts, threshold-free ranking (AUROC) on clean bursts is 0.977–0.983 vs 0.985–0.989 on leaked bursts (a ranking gap of < 1%).
+3. **Causal Quantification of Event Leakage:** Controlled retraining across three random seeds ($N=3$, 6 models total) causally confirms that multi-station event overlap inflates evaluation metrics. However, its causal contribution is **modest**: between **0 and 6 percentage points** depending on the operating threshold. At conservative calibration thresholds (Calib-Fixed, $\text{FPR} \approx 0.15\%$), the causal contrast on catalog bursts is $\mathbf{+5.78\text{ pp} \pm 1.25\text{ pp}}$ [95% $t$-interval: 2.68, 8.87] (positive across 3 of 3 seeds). At operational thresholds comparable to the published model (Matched FPR sensitivity check, $\text{FPR} = 0.843\%$), the causal contrast on catalog bursts attenuates to $\mathbf{+0.52\text{ pp} \pm 1.62\text{ pp}}$ [95% $t$-interval: −4.52, 5.56] (statistically indistinguishable from zero; positive in 2 of 3 seeds), while across all bursts it remains a modest $+2.21\text{ pp} \pm 1.11\text{ pp}$ [95% $t$-interval: −0.54, 4.95] (positive across 3 of 3 seeds). The causal ranking difference (AUROC) inside the catalog is nearly zero ($\Delta\text{AUROC} \approx 0.001$).
+4. **Test-Set Hyperparameter Optimization:** Forensic inspection confirms that all four Weights & Biases Bayesian sweeps directly targeted `test_avg_f1` with `val_split: test`, introducing test-set selection bias and exacerbating threshold miscalibration, though the exact quantitative attribution of this effect was not isolated via a dedicated sweep re-run.
+5. **Operating Robustness & Calibration Shift:** Calibration on train/val negatives causes a distribution shift where test negatives produce lower logits, reducing test FPR to 0.15% (and recall to ~39%). In sensitivity checks matching operational FPR (0.843%), the models recover 71.0%–73.0% overall recall and 74.4%–78.5% on catalog bursts, confirming that physical detection capability is preserved once annotation scope is accounted for.
+6. **Operational Limitations:** Under realistic operational event prevalence ($\pi \le 1\%$), base-rate sensitivity reduces operational PPV to 7.9%–46.5%, requiring multi-station coincidence voting or secondary verification before real-time space weather alerting.
+
+### 10.2 Recommendations for the Field
+
+1. **Adopt Coordinated Event-Group Splitting:** Benchmarks based on distributed multi-station sensor arrays must partition data by physical astronomical event rather than by individual station spectrograms.
+2. **Harmonize Annotation Protocols:** Training, validation, and test partitions must be constructed using strictly identical catalog queries and verification procedures. Post-hoc re-inspection must be applied globally across all splits or isolated in a separate, explicitly characterized out-of-distribution benchmark.
+3. **Strict Validation Segregation:** Automated hyperparameter sweeps and model checkpoints must be governed by an independent validation split that is completely sequestered from test evaluation.
+4. **Report Prevalence-Calibrated Metrics:** Automated space weather detection systems must report PPV curves and False Alarm Ratios calibrated against the full solar cycle (solar maximum to solar minimum base rates).

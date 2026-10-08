@@ -1,2 +1,0 @@
-Real Edges: 10142
-Null Edges (mean +- std): 7668.1 +- 274.4

@@ -236,7 +236,7 @@ for station in test_burst["antenna"].unique():
             "delta_prob": p_l - p_c
         })
 
-station_df = pd.DataFrame(station_stats).sort_values("delta_recall", ascending=True)
+station_df = pd.DataFrame(station_stats).sort_values("delta_recall", ascending=False)
 
 print(f"\n{'Station':25s} | {'n_L':>4s} | {'n_C':>4s} | {'R_L':>6s} | {'R_C':>6s} | {'ΔR':>7s} | {'P_L':>5s} | {'P_C':>5s} | {'ΔP':>6s}")
 print("-" * 90)

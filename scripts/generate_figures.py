@@ -109,22 +109,27 @@ def fig2_burst_vs_nonburst(df_test, is_burst, out_dir):
     print("  Fig 2 saved.")
 
 
-def fig3_base_rate_ppv(out_dir):
+def fig3_base_rate_ppv(df_test, out_dir):
     """PPV vs prevalence curve using observed TPR and FPR."""
-    tpr, fpr = 0.7990, 0.0129
+    y_true = (df_test["manual_label"] != 0).astype(int).values
+    y_pred = df_test["model_label"].values
+    tpr = float(recall_score(y_true, y_pred))
+    fpr = float(((y_pred == 1) & (y_true == 0)).sum() / (y_true == 0).sum())
+    prec = float(precision_score(y_true, y_pred))
+
     pi = np.logspace(-4, np.log10(0.5), 500)
     ppv = (tpr * pi) / (tpr * pi + fpr * (1 - pi))
 
     fig, ax = plt.subplots(figsize=(10, 6))
     ax.plot(pi, ppv * 100, color="#2C3E50", linewidth=2.5)
-    ax.axhline(90.6, color="#BDC3C7", linestyle="--", linewidth=1,
-               label="Reported precision (90.6%)")
+    ax.axhline(prec * 100, color="#BDC3C7", linestyle="--", linewidth=1,
+               label=f"Observed precision ({prec * 100:.1f}%)")
 
-    key_points = [(0.10, "87.4%"), (0.01, "38.6%"), (0.001, "5.9%"), (0.0001, "0.6%")]
-    for p, label in key_points:
+    key_points = [0.10, 0.01, 0.001, 0.0001]
+    for p in key_points:
         val = (tpr * p) / (tpr * p + fpr * (1 - p)) * 100
         ax.scatter([p], [val], color="#E74C3C", s=80, zorder=5)
-        ax.annotate(f"π={p}\nPPV={label}", (p, val),
+        ax.annotate(f"π={p}\nPPV={val:.1f}%", (p, val),
                     textcoords="offset points", xytext=(12, -5),
                     fontsize=10, ha="left")
 
@@ -308,7 +313,7 @@ def main():
     print("Generating figures...")
     fig1_negative_prob_dist(df_test, is_burst, args.output_dir)
     fig2_burst_vs_nonburst(df_test, is_burst, args.output_dir)
-    fig3_base_rate_ppv(args.output_dir)
+    fig3_base_rate_ppv(df_test, args.output_dir)
     fig4_metrics_comparison(df_test, is_burst, is_leaked_15m, is_leaked_1h, args.output_dir)
     fig5_leaked_vs_clean_prob(df_test, is_burst, is_leaked_15m, args.output_dir)
     fig6_per_station_delta_f1(df_test, is_burst, is_leaked_15m, args.output_dir)

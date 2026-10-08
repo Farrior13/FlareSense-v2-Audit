@@ -14,7 +14,6 @@ lib/
 lib64/
 parts/
 sdist/
-var/
 wheels/
 *.egg-info/
 .installed.cfg
@@ -28,7 +27,7 @@ ENV/
 env.bak/
 venv.bak/
 
-# Data and cache directories
+# Data and raw cache directories
 data/
 cache/
 .cache/
@@ -41,6 +40,19 @@ datasets_cache/
 *.csv
 *.parquet
 
+# Model weights and checkpoints (large binary files)
+checkpoints/
+*.pt
+*.ckpt
+*.bin
+
+# Archives & superseded exploratory runs
+archive/
+
+# Execution logs
+logs/
+*.log
+
 # Testing & Coverage
 .pytest_cache/
 .coverage
@@ -52,3 +64,11 @@ htmlcov/
 .idea/
 .DS_Store
 Thumbs.db
+
+# Ensure small results, publication figures, and paper package are tracked
+!results/*.json
+!figures/*.pdf
+!figures/*.png
+!paper/figures/*.pdf
+!paper/figures/*.png
+!paper/arxiv_submission.zip
