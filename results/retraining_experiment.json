@@ -3,7 +3,7 @@
   "runs": {
     "published_FlareSense-v2": {
       "auroc": 0.9560940936491674,
-      "ap": 0.8834497871227585,
+      "ap": 0.8834497871227586,
       "auroc_leaked_vs_neg": 0.9890770201063842,
       "auroc_clean_vs_neg": 0.8931011517780741,
       "auroc_leaked_vs_neg_catalog": 0.989669442395467,
@@ -52,7 +52,7 @@
       "gap_catalog_pp": 14.281290596464924,
       "auroc_gap": 0.08588867005746192,
       "auroc_gap_catalog": 0.0065391419792821814,
-      "threshold_logit": 0.42848289012908936,
+      "threshold_logit": 0.42848290430403724,
       "calib_fpr": 0.008431703204047217
     },
     "purged_seed1": {
@@ -80,7 +80,7 @@
       "gap_catalog_pp": 16.474691987441716,
       "auroc_gap": 0.0793928141168464,
       "auroc_gap_catalog": 0.005077965472141233,
-      "threshold_logit": 0.4080040752887726,
+      "threshold_logit": 0.40800408517630427,
       "calib_fpr": 0.008431703204047217
     },
     "purged_seed2": {
@@ -108,7 +108,7 @@
       "gap_catalog_pp": 13.9460402031788,
       "auroc_gap": 0.07301920729966138,
       "auroc_gap_catalog": 0.004550677520638424,
-      "threshold_logit": 0.46682265400886536,
+      "threshold_logit": 0.4668226468864596,
       "calib_fpr": 0.008431703204047217
     },
     "random_control_seed0": {
@@ -136,7 +136,7 @@
       "gap_catalog_pp": 21.32342964309368,
       "auroc_gap": 0.08848639889042864,
       "auroc_gap_catalog": 0.009833071727546994,
-      "threshold_logit": 0.12903153896331787,
+      "threshold_logit": 0.12903154179830745,
       "calib_fpr": 0.008431703204047217
     },
     "random_control_seed1": {
@@ -164,7 +164,7 @@
       "gap_catalog_pp": 21.026533883060683,
       "auroc_gap": 0.08917952090391079,
       "auroc_gap_catalog": 0.00930225734370016,
-      "threshold_logit": -0.07102156430482864,
+      "threshold_logit": -0.071021566102896,
       "calib_fpr": 0.008431703204047217
     },
     "random_control_seed2": {
@@ -192,7 +192,7 @@
       "gap_catalog_pp": 19.677941988449277,
       "auroc_gap": 0.0779668139284585,
       "auroc_gap_catalog": 0.0029321830661849235,
-      "threshold_logit": -0.023977065458893776,
+      "threshold_logit": -0.023977065411781906,
       "calib_fpr": 0.008431703204047217
     }
   },

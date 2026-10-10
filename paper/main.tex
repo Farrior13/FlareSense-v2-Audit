@@ -58,18 +58,18 @@ A defining characteristic of solar physics and space weather is that the emitter
 
 \section{Replication and Observational Disparity}
 
-We initialized our audit by reproducing the published checkpoint predictions on the official test set spanning 2021-01-20 to 2024-05-12 ($N=30,549$ spectrograms, comprising 4,100 positive bursts and 26,449 background samples). Evaluating the authors' published model weights (`i4ds/flaresense-v2/model.ckpt` loaded via `configs/best_v2.yml`) reproduces their headline results: sample-level (micro-averaged across all 30,549 spectrograms) precision of 93.03\% and recall of 72.59\% (matching the reported 73.15\% within 0.56~pp) at the operating logit threshold $\tau = -0.038$ ($\text{FPR} = 0.843\%$). We note that macro-averaging across stations yields disparate figures due to extreme sample volume skew among instruments.
+We initialized our audit by reproducing the published checkpoint predictions on the official test set spanning 2021-01-20 to 2024-05-12 ($N=30,549$ spectrograms, comprising 4,100 positive bursts and 26,449 background samples). Evaluating the authors' published model weights (`i4ds/flaresense-v2/model.ckpt` loaded via `configs/best_v2.yml`) closely reproduces their headline results: sample-level (micro-averaged across all 30,549 spectrograms) precision of 93.03\% and recall of 72.59\% at the operating logit threshold $\tau = -0.038$ ($\text{FPR} = 0.843\%$). The slight 0.56~pp difference from the reported 73.15\% recall is attributable to minor floating-point threshold discretization and environment-level library differences (PyTorch versions and CUDA floating-point non-determinism). We note that macro-averaging across stations yields disparate figures due to extreme sample volume skew among instruments.
 
 \begin{figure}[t]
 \centering
-\includegraphics[width=0.88\textwidth]{figures/fig1_leakage_collapse.pdf}
+\includegraphics[width=0.88\textwidth]{figures/fig1_leakage_disparity.pdf}
 \caption{\textbf{Performance Disparity on Leaked vs.\ Clean Solar Bursts.} (Left) Recall on leaked test bursts ($n=2,691$) reaches 88.15\%, but drops to 42.87\% on clean test bursts ($n=1,409$). (Right) Predicted burst probability distributions: median confidence drops from 0.790 on leaked events to 0.289 on clean events, falling well below the 0.426 classification threshold.}
-\label{fig:collapse}
+\label{fig:disparity}
 \end{figure}
 
 To evaluate temporal independence, we flagged each test sample as ``leaked'' if its 15-minute window fell within $\pm 15$ minutes of any training positive. We found that \textbf{65.6\% of test bursts} (2,691 of 4,100) are temporally leaked (expanding to 74.3\% within $\pm 60$ minutes). 
 
-When evaluating the published model separately across these subsets, a striking observational disparity emerges (Figure~\ref{fig:collapse}):
+When evaluating the published model separately across these subsets, a striking observational disparity emerges (Figure~\ref{fig:disparity}):
 \begin{itemize}
     \item \textbf{Leaked Test Bursts:} Recall reaches \textbf{88.15\%} (median confidence 0.790).
     \item \textbf{Clean Test Bursts:} Recall falls to \textbf{42.87\%} (median confidence 0.289).
@@ -198,7 +198,7 @@ We note that the comment within `configs/sweep.yaml` (\texttt{\# Insert your mod
 
 \begin{figure}[t]
 \centering
-\includegraphics[width=0.88\textwidth]{figures/fig3_station_collapse.pdf}
+\includegraphics[width=0.88\textwidth]{figures/fig3_station_degradation.pdf}
 \caption{\textbf{Instrument-Level Degradation Across Ground Stations.} Recall degradation on clean events across individual e-CALLISTO spectrometers. Stations with high multi-station overlap (e.g., Egypt, Almaty, Gauri) experience 22--28~pp drops, while autonomous high-SNR stations (e.g., Australia-ASSA) remain stable.}
 \label{fig:stations}
 \end{figure}
@@ -240,7 +240,7 @@ Based on our empirical findings, we offer four recommendations for machine learn
 Our independent evaluation audit confirms that multi-station temporal event leakage in \textsc{FlareSense-v2} is a genuine, measurable phenomenon, but its causal contribution to the observed 45.28~pp recall deficit is modest (0 to 6~pp depending on operating threshold). The vast majority of the deficit is driven by an asymmetric annotation protocol combined with intrinsic burst size and visibility. Once annotation scope is harmonized, the convolutional architecture retains high physical detection capability ($\text{AUROC} > 0.977$). However, deployment requires resolving background calibration distribution shifts and addressing operational base-rate sensitivity through multi-station coincidence verification.
 
 \section*{Data and Code Availability}
-The full replication codebase, statistical evaluation scripts, and precomputed results supporting this audit are publicly available under the MIT license at \url{https://github.com/Farrior13/FlareSense-v2-Audit} (release tag \texttt{v1.0.0}). The e-CALLISTO radio spectrometer data and official burst catalog are openly distributed by the international e-CALLISTO network at \url{https://www.e-callisto.org/}.
+The full replication codebase, statistical evaluation scripts, and precomputed results supporting this audit are publicly available under the MIT license at \url{https://github.com/Farrior13/FlareSense-v2-Audit} (release tag \texttt{v1.0.1}). The e-CALLISTO radio spectrometer data and official burst catalog are openly distributed by the international e-CALLISTO network at \url{https://www.e-callisto.org/}.
 
 \bibliographystyle{plain}
 \bibliography{references}

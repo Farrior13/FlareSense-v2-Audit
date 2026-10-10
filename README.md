@@ -50,18 +50,28 @@ cd FlareSense-v2-Audit
 pip install -r requirements.txt
 ```
 
-### 2. Reproduce Empirical Analysis (Using Precomputed Results)
+### 2. Instant Offline Replication (Using Included Data)
 
-All machine-readable results are pre-computed in [`results/`](results/) for instant verification:
+All required evaluation artifacts, cached split metadata, and official e-CALLISTO catalog lists (~15 MB total) are included directly in [`data/`](data/) and [`results/`](results/). The entire audit pipeline (`02` through `07`) can be executed immediately and fully offline without GPU hardware or downloading the 63 GB spectrogram dataset:
 
 ```bash
-# Verify catalog label origin & uncatalogued burst counts
+# 1. Run core event-level leakage analysis
+python analysis/02_core_analysis.py
+
+# 2. Run exposure gradient and station breakdowns
+python analysis/03_breakdowns.py
+
+# 3. Verify catalog label origin & uncatalogued burst counts
 python analysis/05_catalog_label_origin.py
 
-# Evaluate multi-regime robustness & causal double-differences
+# 4. Evaluate retrained models (purged vs random_control)
+python analysis/06_evaluate_retraining.py
+
+# 5. Evaluate multi-regime robustness & causal double-differences
 python analysis/07_robustness_and_decomposition.py
 
-# Generate publication figures (Figures 1, 2, 3, and 4)
+# 6. Generate publication figures (Figures 0, 1, 2, 3, and 4)
+python analysis/generate_concept_diagram.py
 python analysis/generate_figures.py
 python analysis/generate_comprehensive_figure.py
 ```
@@ -95,15 +105,16 @@ $^*$*Matched FPR and Matched Recall are sensitivity analyses with thresholds ali
 
 All publication figures and the complete LaTeX submission package are available in [`paper/`](paper/):
 
-- [`paper/main.tex`](paper/main.tex): Full LaTeX manuscript with balanced environments and verified citations.
+- [`paper/main.tex`](paper/main.tex): Full LaTeX manuscript with balanced environments and verified citations (release tag `v1.0.1`).
 - [`paper/references.bib`](paper/references.bib): Bibliography containing verified Crossref DOIs and arXiv identifiers.
 - [`paper/arxiv_submission.zip`](paper/arxiv_submission.zip): Self-contained upload bundle for Overleaf / arXiv.
 - [`figures/`](figures/): Vector PDF and 300 DPI PNG figures:
   - `fig0_concept_leakage_mechanism.pdf`: Physical multi-station leakage diagram.
-  - `fig1_leakage_collapse.pdf`: Observational recall disparity and confidence shift.
+  - `fig1_leakage_disparity.pdf`: Observational recall disparity and confidence shift.
   - `fig2_exposure_and_did.pdf`: Monotonic exposure-response curve and difference-in-differences.
-  - `fig3_station_collapse.pdf`: Instrument-level degradation across ground stations.
+  - `fig3_station_degradation.pdf`: Instrument-level degradation across ground stations.
   - `fig4_causal_retraining_contrast.pdf`: Operating regime sensitivity and causal contrast forest plot ($N=3$).
+- [`legacy/`](legacy/): Archived exploratory scripts superseded by the verified `analysis/` pipeline.
 
 ---
 

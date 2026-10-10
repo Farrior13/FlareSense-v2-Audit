@@ -1,0 +1,46 @@
+# Product: e-CALLISTO_2021_02.txt
+# Prepared by PI e-Callisto
+# Please send comments and suggestions to christian.monstein(at)irsol.usi.ch
+#
+# Missing data: ##:##-##:##
+#
+#Date		Time		Type	Stations
+#-------------------------------------------------------------------------------
+20210201	##:##-##:##
+20210202	##:##-##:##
+20210203	##:##-##:##
+20210204	##:##-##:##
+20210205	##:##-##:##
+20210206	##:##-##:##
+20210207	##:##-##:##
+20210208	##:##-##:##
+20210209	##:##-##:##
+20210210	##:##-##:##
+20210211	##:##-##:##
+20210212	##:##-##:##
+20210213	##:##-##:##
+20210214	##:##-##:##
+20210215	##:##-##:##
+20210216	##:##-##:##
+20210217	##:##-##:##
+20210218	18:04-18:04	III	GREENLAND, MEXART, ROSWELL-NM
+20210219	##:##-##:##
+20210220	##:##-##:##
+20210221	##:##-##:##
+20210222	##:##-##:##
+20210223	05:43-05:44	III	KRIM
+20210224	##:##-##:##
+20210225	##:##-##:##
+20210226	##:##-##:##
+20210227	10:55-10:55	III	GLASGOW, HUMAIN, INDIA-OOTY, SOUTHAFRICA-SANSA, SWISS-Landschlacht
+20210227	15:18-15:18	III	GLASGOW, GREENLAND
+20210227	15:20-15:20	III	GLASGOW, GREENLAND
+20210227	17:58-17:58	III	ROSWELL-NM
+20210227	17:58-18:01	III	ALASKA-HAARP, GREENLAND
+20210227	18:07-18:08	III	GREENLAND
+20210228	06:45-06:51	III	ALMATY, INDIA-GAURI, INDIA-OOTY, INDIA-UDAIPUR, MRO, MRT1
+20210228	06:47-06:48	I	ALMATY, INDIA-GAURI, INDIA-OOTY, MRO
+20210228	13:33-13:33	III	GREENLAND, HUMAIN
+
+
+

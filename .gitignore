@@ -27,8 +27,7 @@ ENV/
 env.bak/
 venv.bak/
 
-# Data and raw cache directories
-data/
+# Data caches and raw binary files
 cache/
 .cache/
 datasets_cache/
@@ -39,6 +38,24 @@ datasets_cache/
 *.npz
 *.csv
 *.parquet
+
+# Whitelist evaluation and replication data (metadata & predictions, ~15MB total)
+!data/
+!data/catalog/
+!data/catalog/*.txt
+!data/burst_catalog_parsed.parquet
+!data/test_catalog_tags.parquet
+!data/flaresense_v2_predictions_test.parquet
+!data/meta_*.parquet
+!data/retrain/
+data/retrain/*smoke*
+data/retrain/*backup*
+!data/retrain/purged_seed[0-9]_test.parquet
+!data/retrain/purged_seed[0-9]_calib.parquet
+!data/retrain/purged_seed[0-9]_history.json
+!data/retrain/random_control_seed[0-9]_test.parquet
+!data/retrain/random_control_seed[0-9]_calib.parquet
+!data/retrain/random_control_seed[0-9]_history.json
 
 # Model weights and checkpoints (large binary files)
 checkpoints/

@@ -88,13 +88,13 @@ ax2.legend(loc='upper left', frameon=True, facecolor='white', framealpha=0.9)
 PAPER_FIG_DIR = r"C:\Users\User\Desktop\FlareSense-v2-Audit\paper\figures"
 
 plt.tight_layout()
-fig.savefig(os.path.join(FIG_DIR, "fig1_leakage_collapse.png"), dpi=300)
-fig.savefig(os.path.join(FIG_DIR, "fig1_leakage_collapse.pdf"))
+fig.savefig(os.path.join(FIG_DIR, "fig1_leakage_disparity.png"), dpi=300)
+fig.savefig(os.path.join(FIG_DIR, "fig1_leakage_disparity.pdf"))
 if os.path.exists(PAPER_FIG_DIR):
-    fig.savefig(os.path.join(PAPER_FIG_DIR, "fig1_leakage_collapse.png"), dpi=300)
-    fig.savefig(os.path.join(PAPER_FIG_DIR, "fig1_leakage_collapse.pdf"))
+    fig.savefig(os.path.join(PAPER_FIG_DIR, "fig1_leakage_disparity.png"), dpi=300)
+    fig.savefig(os.path.join(PAPER_FIG_DIR, "fig1_leakage_disparity.pdf"))
 plt.close(fig)
-print("Saved fig1_leakage_collapse dynamically")
+print("Saved fig1_leakage_disparity dynamically")
 
 # ==========================================
 # FIGURE 2: Exposure-Response Gradient & DiD
@@ -201,10 +201,10 @@ for i, (r_l, r_c) in enumerate(zip(rec_leaked, rec_clean)):
     ax.text(105, i, f"-{drop:.0f} pp", va='center', ha='center', fontsize=10, fontweight='bold', color='#c0392b')
 
 plt.tight_layout()
-fig.savefig(os.path.join(FIG_DIR, "fig3_station_collapse.png"), dpi=300)
-fig.savefig(os.path.join(FIG_DIR, "fig3_station_collapse.pdf"))
+fig.savefig(os.path.join(FIG_DIR, "fig3_station_degradation.png"), dpi=300)
+fig.savefig(os.path.join(FIG_DIR, "fig3_station_degradation.pdf"))
 if os.path.exists(PAPER_FIG_DIR):
-    fig.savefig(os.path.join(PAPER_FIG_DIR, "fig3_station_collapse.png"), dpi=300)
-    fig.savefig(os.path.join(PAPER_FIG_DIR, "fig3_station_collapse.pdf"))
+    fig.savefig(os.path.join(PAPER_FIG_DIR, "fig3_station_degradation.png"), dpi=300)
+    fig.savefig(os.path.join(PAPER_FIG_DIR, "fig3_station_degradation.pdf"))
 plt.close(fig)
-print("Saved fig3_station_collapse")
+print("Saved fig3_station_degradation")

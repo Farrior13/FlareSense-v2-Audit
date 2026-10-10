@@ -1,0 +1,45 @@
+# Product: e-CALLISTO_2021_01.txt
+# Prepared by PI e-Callisto
+# Please send comments and suggestions to christian.monstein(at)irsol.usi.ch
+#
+# Missing data: ##:##-##:##
+#
+#Date		Time		Type	Stations
+#-------------------------------------------------------------------------------
+20210101	##:##-##:##
+20210102	##:##-##:##
+20210103	##:##-##:##
+20210104	##:##-##:##
+20210105	##:##-##:##
+20210106	##:##-##:##
+20210107	##:##-##:##
+20210108	##:##-##:##
+20210109	##:##-##:##
+20210110	##:##-##:##
+20210111	##:##-##:##
+20210112	##:##-##:##
+20210113	##:##-##:##
+20210114	##:##-##:##
+20210115	##:##-##:##
+20210116	##:##-##:##
+20210117	##:##-##:##
+20210118	##:##-##:##
+20210119	02:42-02:42	III	Australia-ASSA
+20210120	12:37-12:37	III	AUSTRIA-UNIGRAZ, [HUMAIN], MRT1, SOUTHAFRICA-SANSA, SWISS-Landschlacht, (TRIEST)
+20210121	##:##-##:##
+20210122	##:##-##:##
+20210123	##:##-##:##
+20210124	##:##-##:##
+20210125	##:##-##:##
+20210126	##:##-##:##
+20210127	04:32-04:32	III	Australia-ASSA, INDIA-GAURI, SOUTHAFRICA-SANSA
+20210127	09:27-09:27	III	AUSTRIA-UNIGRAZ, INDIA-GAURI, INDIA-OOTY, MRT1, TRIEST
+20210128	##:##-##:##
+20210129	##:##-##:##
+20210130	##:##-##:##
+20210131	##:##-##:##
+
+
+() hardly visible in the spectrum, requires some fantasy...
+[] Syncronization error, spectrum messed up either in time and/or in frequency
+??? not yet clear ...
