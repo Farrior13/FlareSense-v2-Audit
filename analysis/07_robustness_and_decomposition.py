@@ -249,9 +249,27 @@ step2_contrasts = {
     },
     "threshold_free_auroc": {
         "desc": "Threshold-free ranking performance on catalog bursts",
-        "random_control_catalog_auroc_gap": 0.007,
-        "purged_catalog_auroc_gap": 0.006,
-        "catalog_delta_auroc": 0.001
+        "published_catalog_auroc_gap": float(
+            results["threshold_free_metrics"]["published_FlareSense-v2"]["auroc_gap_catalog"]
+        ),
+        "random_control_catalog_auroc_gap": float(np.mean([
+            results["threshold_free_metrics"][f"random_control_seed{s}"]["auroc_gap_catalog"]
+            for s in [0, 1, 2]
+        ])),
+        "purged_catalog_auroc_gap": float(np.mean([
+            results["threshold_free_metrics"][f"purged_seed{s}"]["auroc_gap_catalog"]
+            for s in [0, 1, 2]
+        ])),
+        "catalog_delta_auroc": float(
+            np.mean([
+                results["threshold_free_metrics"][f"random_control_seed{s}"]["auroc_gap_catalog"]
+                for s in [0, 1, 2]
+            ])
+            - np.mean([
+                results["threshold_free_metrics"][f"purged_seed{s}"]["auroc_gap_catalog"]
+                for s in [0, 1, 2]
+            ])
+        ),
     }
 }
 

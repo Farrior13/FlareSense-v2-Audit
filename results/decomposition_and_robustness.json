@@ -831,9 +831,10 @@
       },
       "threshold_free_auroc": {
         "desc": "Threshold-free ranking performance on catalog bursts",
-        "random_control_catalog_auroc_gap": 0.007,
-        "purged_catalog_auroc_gap": 0.006,
-        "catalog_delta_auroc": 0.001
+        "published_catalog_auroc_gap": 0.01008871703790315,
+        "random_control_catalog_auroc_gap": 0.007355837379144026,
+        "purged_catalog_auroc_gap": 0.005389261657353946,
+        "catalog_delta_auroc": 0.00196657572179008
       }
     },
     "unmeasured_factors": {

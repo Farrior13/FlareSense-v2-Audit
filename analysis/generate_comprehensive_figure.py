@@ -22,8 +22,12 @@ plt.rcParams['grid.color'] = '#eeeeee'
 plt.rcParams['grid.linestyle'] = '--'
 plt.rcParams['grid.alpha'] = 0.7
 
-RESULTS_DIR = r"C:\Users\User\Desktop\FlareSense-v2-Audit\results"
-FIG_DIR = r"C:\Users\User\Desktop\FlareSense-v2-Audit\figures"
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+RESULTS_DIR = str(ROOT / "results")
+FIG_DIR = str(ROOT / "figures")
+PAPER_FIG_DIR = str(ROOT / "paper" / "figures")
 os.makedirs(FIG_DIR, exist_ok=True)
 
 with open(os.path.join(RESULTS_DIR, "decomposition_and_robustness.json"), "r") as f:
@@ -128,7 +132,6 @@ ax2.legend(loc='lower left', frameon=True, facecolor='white', framealpha=0.95, f
 ax2.text(0.02, -0.15, '*Sensitivity analysis (threshold set on test); error bars: 95% t-interval over N=3 seeds',
          transform=ax2.transAxes, fontsize=8.0, fontstyle='italic', color='#555555')
 
-PAPER_FIG_DIR = r"C:\Users\User\Desktop\FlareSense-v2-Audit\paper\figures"
 fig.savefig(os.path.join(FIG_DIR, "fig4_causal_retraining_contrast.png"), dpi=300, bbox_inches='tight')
 fig.savefig(os.path.join(FIG_DIR, "fig4_causal_retraining_contrast.pdf"), bbox_inches='tight')
 if os.path.exists(PAPER_FIG_DIR):

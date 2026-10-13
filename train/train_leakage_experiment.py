@@ -40,9 +40,6 @@ import sys
 import time
 from pathlib import Path
 
-os.environ.setdefault("HF_HUB_OFFLINE", "1")
-os.environ.setdefault("HF_DATASETS_OFFLINE", "1")
-
 import numpy as np
 import pandas as pd
 import torch

@@ -13,10 +13,10 @@ This repository contains the complete independent evaluation audit, controlled r
 
 FlareSense-v2 reported headline test performance of 93.0% precision and 73.15% recall. Our independent reproducibility audit reveals four primary findings:
 
-1. **Multi-Station Event Leakage (Observational Disparity)**: Because spectrograms were partitioned randomly by file rather than by astronomical UTC event window, **65.6% of test bursts** (2,691 of 4,100) share an identical 15-minute event window with training samples (expanding to 74.3% within $\pm 60$ minutes). On truly unseen ("clean") solar events, test recall drops from **88.15% to 42.87%** (an observational deficit of **45.28 percentage points**, 95% CI: [39.4, 51.2]). Median model confidence drops from **0.790 to 0.289**, falling well below the 0.426 classification threshold.
-2. **Asymmetric Annotation Protocol**: Cross-matching all 304,750 dataset spectrograms against 11,853 events in the official e-CALLISTO catalog (2021–2024) reveals that 99.1% of training bursts are standard catalog events. In the clean test partition, however, **847 bursts (60.1%)** do not appear in the catalog under any station (and 66.5% do not match for that specific station); these were added during post-hoc manual re-inspection by the Principal Investigator. Equivalent faint features in training were labeled as background ($y=0$). Restricting evaluation strictly to standard catalog bursts contracts the observational recall gap by **27.34 pp** (from 45.28 pp down to 17.94 pp), and threshold-free rank discrimination is near-identical ($\text{AUROC} > 0.977$, gap $< 1\%$).
-3. **Controlled Retraining ($N=3$ Seeds, 6 Models)**: Contrasting a temporal `purged` training arm against an exact-size `random_control` across 3 independent seeds under the authors' exact recipe causally proves that multi-station event leakage inflates recall, but its causal contribution is **modest: between 0 and 6 pp** depending on operating point (+5.78 pp [95% $t$-interval: 2.68, 8.87] at conservative calibration thresholds; +0.52 pp [95% $t$-interval: −4.52, 5.56] at test-matched operational false alarm rates). The majority of the apparent 45.28 pp deficit is explained by label protocol asymmetry and event detectability/size.
-4. **Test-Set Optimization Forensics**: Hyperparameter optimization sweep configs (`configs/sweep_*.yml`) targeted `test_avg_f1` with `val_split: test`, serving as an interactive development scaffold that inadvertently compromised test-set sequestration.
+1. **Multi-Station Event Leakage (Observational Disparity)**: Because spectrograms were partitioned randomly by file rather than by astronomical UTC event window, **65.6% of test bursts** (2,691 of 4,100) share an identical 15-minute event window with training samples (expanding to 74.3% within $\pm 60$ minutes). On truly unseen ("clean") solar events, test recall drops from **88.15% to 42.87%** (an observational deficit of **45.28 percentage points**, 95% cluster-bootstrap CI: [42.4, 48.2]). Median model confidence drops from **0.790 to 0.289**, falling well below the 0.426 classification threshold.
+2. **Asymmetric Annotation Protocol**: Cross-matching all 304,750 dataset spectrograms against 11,853 events in the official e-CALLISTO catalog (2021–2024) reveals that 99.1% of training bursts are standard catalog events. In the clean test partition, however, **847 bursts (60.1%)** do not appear in the catalog under any station (and 937, or 66.5%, do not match for that specific station); these were added during post-hoc manual re-inspection by the Principal Investigator. Equivalent faint features in training were labeled as background ($y=0$). Restricting evaluation strictly to standard catalog bursts contracts the observational recall gap by **27.34 pp** (from 45.28 pp down to 17.94 pp), and threshold-free rank discrimination is near-identical ($\text{AUROC} = 0.990$ vs. $0.980$, gap $\approx 1.0\%$).
+3. **Controlled Retraining ($N=3$ Seeds, 6 Models)**: Contrasting a temporal `purged` training arm against an exact-size `random_control` across 3 independent seeds under the authors' exact recipe causally proves that multi-station event leakage inflates recall, but its causal contribution is **modest: between 0 and 6 pp** depending on operating point (+5.78 pp [95% $t$-interval: 2.68, 8.87] at conservative calibration thresholds; +0.52 pp [95% $t$-interval: −4.52, 5.56] at test-matched operational false alarm rates). Furthermore, the conservative calibration shift ($\text{FPR} \approx 0.15\%$ on test when calibrated for $0.84\%$ on train/val negatives) is explained by uncatalogued faint bursts remaining labeled as $y=0$ in train/val while being relabeled $y=1$ in test.
+4. **Test-Set Optimization & Implementation Forensics**: Hyperparameter optimization sweep configs (`configs/sweep_*.yml`) targeted `test_avg_f1` with `val_split: test`. This is independently corroborated by the published manuscript's own tables: the "validation F1 score of 80.53%" reported in Section 5.2 is the exact unweighted mean ($80.538\%$) of the 26 per-instrument **test-set** F1 scores in Appendix B (Table 5). Additionally, class-weighted binary cross-entropy passed a scalar weight to `weight=` rather than `pos_weight=`, rendering class weighting a uniform loss multiplier (a mathematical no-op under AdamW).
 5. **Operational Base-Rate Sensitivity**: At realistic space weather event prevalences ($\pi \in [0.001, 0.01]$), Bayes' theorem establishes that operational precision (PPV) drops to **7.9% – 46.5%**, yielding a 53% to 92% false alarm rate in continuous single-station deployment.
 
 ---
@@ -43,7 +43,7 @@ The repository provides end-to-end reproducible scripts in [`analysis/`](analysi
 
 ```bash
 # Clone repository
-git clone https://github.com/FlareSense-v2-Audit/FlareSense-v2-Audit.git
+git clone https://github.com/Farrior13/FlareSense-v2-Audit.git
 cd FlareSense-v2-Audit
 
 # Install dependencies
@@ -93,7 +93,7 @@ Rather than imposing an uncalibrated additive decomposition across mismatched th
 
 | Step / Dimension | Scope / Operating Regime | Metric / Effect | Interpretation / 95% Confidence Interval |
 |---|---|:---:|---|
-| **Step 1: Observational Scope**<br>*(Published FlareSense-v2)* | All Test Bursts ($n=2,689$)<br>Catalog Bursts ($n=1,842$) | 45.28 pp gap<br>17.94 pp gap | Raw published observational deficit<br>Standard e-CALLISTO catalog bursts |
+| **Step 1: Observational Scope**<br>*(Published FlareSense-v2)* | All Test Bursts ($n=4,100$)<br>Catalog Bursts ($n=3,211$) | 45.28 pp gap<br>17.94 pp gap | Raw published observational deficit ($2,691$ leaked, $1,409$ clean)<br>Standard e-CALLISTO catalog bursts ($2,649$ leaked, $562$ clean) |
 | | **Scope Reduction** | **$-$27.34 pp** | **Label protocol asymmetry + event detectability / SNR** |
 | **Step 2: Causal Leakage**<br>*(Retraining Contrast:)*<br>*Random Control − Purged*<br>*(3-Seed Pooled Mean)* | Calib-Fixed (Catalog)<br>Calib-Fixed (All Bursts)<br>Matched FPR$^*$ (Catalog)<br>Matched FPR$^*$ (All Bursts)<br>Matched Recall$^*$ (Catalog)<br>Matched Recall$^*$ (All Bursts)<br>Threshold-Free AUROC | **+5.78 pp**<br>**+4.09 pp**<br>**+0.52 pp**<br>**+2.21 pp**<br>**+1.68 pp**<br>**+2.86 pp**<br>**+0.001** | [2.68, 8.87] (positive across 3/3 seeds)<br>[2.75, 5.42] (positive across 3/3 seeds)<br>[$-$4.52, 5.56] (not significant; 2/3 seeds $>0$)<br>[$-$0.54, 4.95] (marginal; 3/3 seeds $>0$)<br>[$-$1.18, 4.53] (not significant; 3/3 seeds $>0$)<br>[2.06, 3.66] (positive across 3/3 seeds)<br>Rank difference $< 0.1\%$ in catalog |
 
@@ -105,7 +105,7 @@ $^*$*Matched FPR and Matched Recall are sensitivity analyses with thresholds ali
 
 All publication figures and the complete LaTeX submission package are available in [`paper/`](paper/):
 
-- [`paper/main.tex`](paper/main.tex): Full LaTeX manuscript with balanced environments and verified citations (release tag `v1.0.1`).
+- [`paper/main.tex`](paper/main.tex): Full LaTeX manuscript with balanced environments and verified citations (release tag `v1.0.2`).
 - [`paper/references.bib`](paper/references.bib): Bibliography containing verified Crossref DOIs and arXiv identifiers.
 - [`paper/arxiv_submission.zip`](paper/arxiv_submission.zip): Self-contained upload bundle for Overleaf / arXiv.
 - [`figures/`](figures/): Vector PDF and 300 DPI PNG figures:

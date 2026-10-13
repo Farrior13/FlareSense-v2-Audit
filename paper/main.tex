@@ -58,11 +58,11 @@ A defining characteristic of solar physics and space weather is that the emitter
 
 \section{Replication and Observational Disparity}
 
-We initialized our audit by reproducing the published checkpoint predictions on the official test set spanning 2021-01-20 to 2024-05-12 ($N=30,549$ spectrograms, comprising 4,100 positive bursts and 26,449 background samples). Evaluating the authors' published model weights (`i4ds/flaresense-v2/model.ckpt` loaded via `configs/best_v2.yml`) closely reproduces their headline results: sample-level (micro-averaged across all 30,549 spectrograms) precision of 93.03\% and recall of 72.59\% at the operating logit threshold $\tau = -0.038$ ($\text{FPR} = 0.843\%$). The slight 0.56~pp difference from the reported 73.15\% recall is attributable to minor floating-point threshold discretization and environment-level library differences (PyTorch versions and CUDA floating-point non-determinism). We note that macro-averaging across stations yields disparate figures due to extreme sample volume skew among instruments.
+We initialized our audit by reproducing the published checkpoint predictions on the official test set spanning 2021-01-20 to 2024-05-12 ($N=30,549$ spectrograms, comprising 4,100 positive bursts and 26,449 background samples). Evaluating the authors' published model weights (\texttt{i4ds/flaresense-v2/model.ckpt} loaded via \texttt{configs/best\_v2.yml}) closely reproduces their headline results: sample-level (micro-averaged across all 30,549 spectrograms) precision of 93.03\% and recall of 72.59\% at the calibrated probability threshold $p = \sigma(z / 0.4974) \ge 0.426$, corresponding to raw logit threshold $\tau = -0.148$ ($\text{FPR} = 0.843\%$). The slight 0.56~pp difference from the reported 73.15\% recall is attributable to minor floating-point threshold discretization and environment-level library differences (PyTorch versions and CUDA floating-point non-determinism). We note that macro-averaging across stations yields 91.58\% precision, 72.26\% recall, and 80.21\% F1 due to sample volume skew across the 26 instruments.
 
 \begin{figure}[t]
 \centering
-\includegraphics[width=0.88\textwidth]{figures/fig1_leakage_disparity.pdf}
+\includegraphics[width=0.92\textwidth]{figures/fig1_leakage_disparity.pdf}
 \caption{\textbf{Performance Disparity on Leaked vs.\ Clean Solar Bursts.} (Left) Recall on leaked test bursts ($n=2,691$) reaches 88.15\%, but drops to 42.87\% on clean test bursts ($n=1,409$). (Right) Predicted burst probability distributions: median confidence drops from 0.790 on leaked events to 0.289 on clean events, falling well below the 0.426 classification threshold.}
 \label{fig:disparity}
 \end{figure}
@@ -74,12 +74,12 @@ When evaluating the published model separately across these subsets, a striking 
     \item \textbf{Leaked Test Bursts:} Recall reaches \textbf{88.15\%} (median confidence 0.790).
     \item \textbf{Clean Test Bursts:} Recall falls to \textbf{42.87\%} (median confidence 0.289).
 \end{itemize}
-This represents an observational deficit of \textbf{45.28 percentage points (pp)} [95\% cluster-bootstrap CI: 39.4, 51.2]. Furthermore, recall scales monotonically with the number of training stations that observed the event (Figure~\ref{fig:exposure}), rising from 42.87\% at zero stations to 93.96\% at 11+ stations.
+This represents an observational deficit of \textbf{45.28 percentage points (pp)} [95\% cluster-bootstrap CI: 42.4, 48.2]. Furthermore, recall scales monotonically with the number of training stations that observed the event (Figure~\ref{fig:exposure}, Panel A), rising from 42.87\% at zero stations to 93.96\% at 11+ stations. Contrasting the published \textsc{FlareSense-v2} checkpoint against the earlier pre-computed Hugging Face checkpoint (\texttt{model\_label} at $p \ge 0.50$, which achieved 83.4\% leaked vs.\ 73.3\% clean recall) yields an observational difference-in-differences (DiD) contrast of $+35.2$~pp [95\% cluster CI: 31.9, 38.2] (Figure~\ref{fig:exposure}, Panel B).
 
 \begin{figure}[t]
 \centering
-\includegraphics[width=0.88\textwidth]{figures/fig2_exposure_and_did.pdf}
-\caption{\textbf{Exposure Gradient and Station-Wise Generalization.} (Left) Monotonic scaling of test recall as a function of the number of ground stations observing the event present in training. (Right) Difference-in-differences contrast between FlareSense-v2 and the earlier baseline model.}
+\includegraphics[width=0.92\textwidth]{figures/fig2_exposure_and_did.pdf}
+\caption{\textbf{Exposure Gradient and Observational Checkpoint Contrast.} (Left) Monotonic scaling of test recall and mean predicted probability as a function of the number of training stations observing the same physical burst. (Right) Observational difference-in-differences contrast between the published \textsc{FlareSense-v2} checkpoint and the earlier Hugging Face checkpoint.}
 \label{fig:exposure}
 \end{figure}
 
@@ -92,23 +92,23 @@ This cross-matching revealed a critical dataset asymmetry:
     \item In the training and validation splits, \textbf{99.1\%} of labeled bursts match the routine catalog for that observing station (99.7\% match any station).
     \item In the test set of 4,100 bursts, 1,024 bursts (25.0\%) are not listed in the catalog for that station, and 889 bursts (21.7\%) do not appear in the catalog under any station.
     \item Crucially, these uncatalogued bursts are concentrated almost entirely in the clean test subset: among the 1,409 clean test bursts, \textbf{847 (60.1\%)} do not match the routine catalog under any station (and 937, or 66.5\%, do not match for that specific station). By contrast, among the 2,691 leaked test bursts, 98.4\% (2,649) appear in the catalog (96.8\% for that station).
-    \item As detailed in the original paper's data generation description (Sections 4.4 and 6), the clean test partition was curated by having the Principal Investigator manually re-inspect spectrograms and add uncatalogued faint bursts. In training, equivalent faint single-station spectral features were assigned negative labels ($y=0$, background).
+    \item As detailed in the original paper's data generation description (Sections 4.4 and 6), the clean test partition was curated by having the Principal Investigator manually re-inspect spectrograms and add uncatalogued faint bursts (raising test burst prevalence to 13.42\%, compared to 9.15\% in train and 9.33\% in validation). In training, equivalent faint single-station spectral features remained labeled as negative background ($y=0$).
 \end{enumerate}
 
-Because FlareSense-v2 was trained on routine catalog events, it detects only 24.86\% of the 889 uncatalogued test bursts (and only 24.20\% of the 847 uncatalogued clean bursts, compared to 71.00\% on the 562 catalog-listed clean bursts). When evaluation is restricted strictly to standard catalog events, the observational recall gap contracts from 45.28~pp to \textbf{17.94~pp} [95\% CI: 14.02, 22.03] (88.94\% leaked vs.\ 71.00\% clean).
+Because \textsc{FlareSense-v2} was trained on routine catalog events, it detects only 24.86\% of the 889 uncatalogued test bursts (and only 24.20\% of the 847 uncatalogued clean bursts, compared to 71.00\% on the 562 catalog-listed clean bursts). When evaluation is restricted strictly to standard catalog events ($n=3,211$: 2,649 leaked and 562 clean), the observational recall gap contracts from 45.28~pp to \textbf{17.94~pp} [95\% CI: 14.02, 22.03] (88.94\% leaked vs.\ 71.00\% clean).
 
-Furthermore, evaluating threshold-free rank discrimination on catalog bursts yields near-identical performance:
+Furthermore, evaluating threshold-free rank discrimination on catalog bursts yields near-identical performance for the published model:
 \begin{equation}
-\text{AUROC}_{\text{leaked}} = 0.985 \quad \text{vs.} \quad \text{AUROC}_{\text{clean}} = 0.978 \quad (\Delta\text{AUROC} = 0.007 < 1\%).
+\text{AUROC}_{\text{leaked, cat}} = 0.990 \quad \text{vs.} \quad \text{AUROC}_{\text{clean, cat}} = 0.980 \quad (\Delta\text{AUROC} = 0.010),
 \end{equation}
-This confirms that the convolutional architecture ranks clean catalog bursts against background with high precision, and that the majority of the raw observational deficit stems from the protocol asymmetry and event detectability rather than a complete failure of physical burst representations.
+and across our retrained models ($\text{AUROC}_{\text{leaked, cat}} \in [0.985, 0.987]$ vs.\ $\text{AUROC}_{\text{clean, cat}} \in [0.977, 0.983]$, $\Delta\text{AUROC} \in [0.006, 0.007]$). This confirms that the convolutional architecture ranks clean catalog bursts against background with high accuracy, and that the majority of the raw observational deficit stems from the protocol asymmetry and event detectability rather than a failure of physical burst representations.
 
 \section{Controlled Retraining Framework}
 
-To causally isolate the effect of multi-station event leakage from confounding factors (such as dataset size, SNR, and label protocols), we designed and executed a controlled retraining experiment across three independent random seeds ($N=3$, 6 models total) using the authors' exact training recipe (`configs/best_v2.yml`: ResNet-34, AdamW \cite{loshchilov2019adamw}, SpecAugment \cite{park2019specaugment}, TimeWarp $W=389$, label smoothing 0.1174, 25 epochs):
+To causally isolate the effect of multi-station event leakage from confounding factors (such as dataset size, SNR, and label protocols), we designed and executed a controlled retraining experiment across three independent random seeds ($N=3$, 6 models total) using the authors' exact training recipe (\texttt{configs/best\_v2.yml}: ResNet-34, AdamW \cite{loshchilov2019adamw}, SpecAugment \cite{park2019specaugment}, TimeWarp $W=389$, label smoothing 0.1174, 25 epochs). After holding out a 5\% calibration split (13,710 samples) from the non-overlapping training pool:
 \begin{itemize}
-    \item \textbf{\texttt{purged}:} All 44,106 samples (14,232 bursts) falling within $\pm 30$ minutes of any test burst were removed from training.
-    \item \textbf{\texttt{random\_control}:} An exactly identical number of positive (9,653) and negative (206,732) samples were removed entirely at random, preserving identical training set size and class balance while retaining temporal event overlap.
+    \item \textbf{\texttt{purged}:} All 44,106 samples (14,232 positive bursts and 29,874 negatives) falling within $\pm 30$ minutes of any test burst were removed from training, leaving exactly 216,385 training samples (9,653 bursts and 206,732 negatives).
+    \item \textbf{\texttt{random\_control}:} An exactly identical number of positive (14,232) and negative (29,874) samples were removed entirely at random (leaving 9,653 bursts and 206,732 negatives), preserving identical training set size and class balance while retaining temporal event overlap.
 \end{itemize}
 
 Evaluating both arms on the untouched test partition allows computation of the causal double-difference contrast:
@@ -120,7 +120,7 @@ Evaluating both arms on the untouched test partition allows computation of the c
 
 We evaluated all models across four operating regimes to systematically assess sensitivity to threshold placement:
 \begin{enumerate}
-    \item \textbf{Calibration-Fixed Regime (Independent Split):} Operating threshold calibrated strictly on held-out train/val negatives targeting $\text{FPR} = 0.84\%$. Due to a distribution shift in background spectrograms between splits (training backgrounds produce higher logits than test backgrounds), this threshold operates conservatively on test ($\text{FPR} \approx 0.15\%$, recall $\approx 39\%$).
+    \item \textbf{Calibration-Fixed Regime (Independent Split):} Operating threshold calibrated strictly on held-out train/val negatives targeting $\text{FPR} = 0.843\%$. Because the PI's manual re-inspection relabeled $\sim 4.2\%$ of test spectrograms (unlisted faint bursts) from $y=0 \to y=1$ while leaving equivalent faint bursts inside $y=0$ in the train/val calibration split, the upper tail of calibration negatives is contaminated by unlabelled true bursts (mean logit $+0.64$ in the top 1\%). This pushes the $99.16\text{th}$ percentile of calibration negatives up to $\tau \approx +0.43$ (compared to $\tau \approx -0.30$ on cleaned test negatives), causing the calibrated threshold to operate conservatively on the test set ($\text{FPR} \approx 0.15\%$, overall recall $\approx 39\%$).
     \item \textbf{Test-Matched FPR Regime ($\text{FPR} = 0.843\%$):} Exploratory sensitivity analysis with the threshold aligned to the published model's test false alarm rate.
     \item \textbf{Test-Matched Recall Regime ($\text{Recall} = 72.59\%$):} Exploratory sensitivity analysis with the threshold aligned to the published model's sensitivity.
     \item \textbf{Threshold-Free Discrimination (AUROC / AP):} Threshold-independent ranking capability.
@@ -136,7 +136,7 @@ We evaluated all models across four operating regimes to systematically assess s
 The empirical results (Figure~\ref{fig:retraining}) provide a nuanced scientific picture:
 \begin{itemize}
     \item At conservative calibration thresholds (Calib-Fixed), removing event leakage contracts the catalog recall gap by \textbf{$\Delta\Delta_{\text{catalog}} = +5.78\text{ pp} \pm 1.25\text{ pp}$} [95\% $t$-interval: 2.68, 8.87] (positive across 3/3 seeds), and across all bursts by \textbf{$\Delta\Delta_{\text{all}} = +4.09\text{ pp} \pm 0.54\text{ pp}$} [95\% $t$-interval: 2.75, 5.42] (positive across 3/3 seeds).
-    \item At operational thresholds matched to the published model ($\text{FPR} = 0.843\%$), the causal contrast on catalog bursts attenuates to \textbf{$+0.52\text{ pp} \pm 1.62\text{ pp}$} [95\% $t$-interval: $-4.52, 5.56$] (statistically indistinguishable from zero; positive in 2/3 seeds), while on all bursts it remains a modest $+2.21\text{ pp} \pm 1.11\text{ pp}$ (positive across 3/3 seeds).
+    \item At operational thresholds matched to the published model ($\text{FPR} = 0.843\%$), the causal contrast on catalog bursts attenuates to \textbf{$+0.52\text{ pp} \pm 2.03\text{ pp}$} [95\% $t$-interval: $-4.52, 5.56$] (statistically indistinguishable from zero; positive in 2/3 seeds), while on all bursts it remains a modest $+2.21\text{ pp} \pm 1.11\text{ pp}$ (positive across 3/3 seeds).
     \item In threshold-free ranking on catalog bursts, both arms achieve near-identical AUROC ($>0.977$), with a causal contrast of merely $\Delta\text{AUROC} \approx 0.001$.
 \end{itemize}
 
@@ -157,8 +157,8 @@ Rather than imposing an unverified additive decomposition across non-comparable 
 \toprule
 \textbf{Step / Dimension} & \textbf{Scope / Operating Regime} & \textbf{Metric / Effect} & \textbf{Interpretation / 95\% CI} \\
 \midrule
-\textbf{Step 1: Observational Scope} & All Test Bursts ($n=2,689$) & 45.28 pp gap & Raw published observational deficit \\
-\textit{(Published FlareSense-v2)} & Catalog Bursts ($n=1,842$) & 17.94 pp gap & Standard e-CALLISTO catalog bursts \\
+\textbf{Step 1: Observational Scope} & All Test Bursts ($n=4,100$) & 45.28 pp gap & Raw deficit (2,691 leaked, 1,409 clean) \\
+\textit{(Published FlareSense-v2)} & Catalog Bursts ($n=3,211$) & 17.94 pp gap & Standard catalog (2,649 leaked, 562 clean) \\
 \cmidrule{2-4}
  & \textbf{Scope Reduction} & \textbf{$-$27.34 pp} & \textbf{Label protocol + event size / SNR} \\
 \midrule
@@ -177,36 +177,28 @@ Rather than imposing an unverified additive decomposition across non-comparable 
 \end{tabular}
 \end{table}
 
-\section{Methodological Audit: Test-Set Sweep Forensics}
+\section{Methodological Audit: Test-Set Sweep and Code Forensics}
 
-Repository commit inspection revealed an additional methodological defect: Bayesian hyperparameter optimization sweeps directly targeted the test partition.
-
-Specifically:
-\begin{itemize}
-    \item All four Weights \& Biases sweep configuration files (`configs/sweep_*.yml`) specify:
-    \begin{quote}
-    \texttt{metric: \{name: test\_avg\_f1, goal: maximize\}}
-    \end{quote}
-    \item Both the baseline configuration (`configs/test_v2.yml`) and final configuration (`configs/best_v2.yml`) explicitly designate:
-    \begin{quote}
-    \texttt{val\_split: test}
-    \end{quote}
-\end{itemize}
-We note that the comment within `configs/sweep.yaml` (\texttt{\# Insert your model here (do not push it, adapt it each time.)}) indicates that this configuration served as an interactive experimentation and testing scaffold during development rather than an intentional circumvention. Nonetheless, executing hyperparameter optimization and model checkpoint selection directly on the designated test split inadvertently compromised test-set sequestration, introducing selection bias and confounding independent threshold calibration.
+Repository commit and source-code inspection of \texttt{i4Ds/FlareSense-v2} (HEAD \texttt{85c2f45}) revealed two additional methodological and implementation defects:
+\begin{enumerate}
+    \item \textbf{Direct Test-Set Hyperparameter Optimization:} All four Weights \& Biases sweep configurations (\texttt{configs/sweep\_*.yml}) specify \texttt{metric: \{name: test\_avg\_f1, goal: maximize\}}, while both \texttt{configs/test\_v2.yml} and \texttt{configs/best\_v2.yml} set \texttt{train\_split: [train, val]} and \texttt{val\_split: test}. At the end of each training run, \texttt{main.py:245} executes \texttt{trainer.test(model, test\_dataloader)}, logging the unweighted mean of the 26 per-instrument test F1 scores as \texttt{test\_avg\_f1}. Crucially, this finding is independently verified by the numbers printed in Timmel et al.\ (2026): Section~5.2 states that Bayesian optimization reached an F1 score of \textbf{80.53\%} on the ``validation set,'' which is mathematically identical to the unweighted mean (\textbf{80.538\%}) of the 26 per-instrument \textbf{test-set} F1 scores reported in Appendix~B (Table~5). While comments in \texttt{configs/sweep.yaml} indicate that this setup originated as an interactive experimentation scaffold, optimizing hyperparameters and selecting checkpoints directly on the test split compromised test-set sequestration \cite{cawley2010overfitting}.
+    \item \textbf{Inactive Class-Weighting Implementation:} Although Section~5 of Timmel et al.\ (2026) formulates a class-weighted binary cross-entropy loss upweighting positive bursts by $w_1 \approx 10$, \texttt{ecallisto\_dataset.py:251} and \texttt{ecallisto\_model.py:113} extract a single scalar \texttt{cw[1]} and pass it to \texttt{F.binary\_cross\_entropy\_with\_logits(..., weight=...)} rather than \texttt{pos\_weight=...}. Passing a scalar to \texttt{weight} multiplies both positive ($y=1$) and negative ($y=0$) losses by the same constant factor, which under scale-invariant AdamW updates has zero effect on gradient direction.
+\end{enumerate}
 
 \section{Instrument-Level Degradation}
 
 \begin{figure}[t]
 \centering
-\includegraphics[width=0.88\textwidth]{figures/fig3_station_degradation.pdf}
-\caption{\textbf{Instrument-Level Degradation Across Ground Stations.} Recall degradation on clean events across individual e-CALLISTO spectrometers. Stations with high multi-station overlap (e.g., Egypt, Almaty, Gauri) experience 22--28~pp drops, while autonomous high-SNR stations (e.g., Australia-ASSA) remain stable.}
+\includegraphics[width=0.90\textwidth]{figures/fig3_station_degradation.pdf}
+\caption{\textbf{Instrument-Level Degradation Across Ground Stations.} Top 10 e-CALLISTO stations ranked by observational recall drop between leaked and clean test bursts (stations with $\ge 5$ clean bursts). Severe drops (56--82~pp) occur on stations where clean test bursts are heavily dominated by uncatalogued PI-added faint events.}
 \label{fig:stations}
 \end{figure}
 
-Evaluating recall degradation across individual e-CALLISTO instruments reveals substantial heterogeneity (Figure~\ref{fig:stations}):
+Evaluating recall degradation across individual e-CALLISTO instruments ($\ge 5$ clean bursts) reveals pronounced heterogeneity across the global array (Figure~\ref{fig:stations}):
 \begin{itemize}
-    \item Instruments operating in dense geographical clusters (e.g., \texttt{EGYPT-Alexandria\_02}, \texttt{ALMATY\_58}, \texttt{INDIA-GAURI\_01}) exhibit large recall drops of 22--28~pp on clean events.
-    \item Conversely, high-sensitivity autonomous stations with unique longitudinal coverage (e.g., \texttt{Australia-ASSA\_62}) experience minimal degradation ($-4.3$~pp, 93.3\% leaked vs.\ 89.0\% clean recall), demonstrating genuine localized physical detection.
+    \item Across all test bursts, the ten most affected stations exhibit severe observational recall drops of 56--82~pp on clean events: \texttt{KASI\_59} ($-82.2$~pp, 94.7\% leaked vs.\ 12.5\% clean), \texttt{MEXART\_59} ($-67.8$~pp, 88.9\% vs.\ 21.1\%), \texttt{NORWAY-EGERSUND\_01} ($-66.4$~pp, 91.0\% vs.\ 24.7\%), \texttt{MRO\_61} ($-65.7$~pp, 83.7\% vs.\ 17.9\%), \texttt{MEXICO-LANCE-B\_62} ($-62.2$~pp), \texttt{ALGERIA-CRAAG\_59} ($-62.1$~pp), \texttt{MRO\_59} ($-60.8$~pp), \texttt{SWISS-Landschlacht\_62} ($-59.1$~pp), \texttt{ALMATY\_58} ($-58.2$~pp), and \texttt{GERMANY-DLR\_63} ($-55.8$~pp).
+    \item Conversely, high-sensitivity stations such as \texttt{HUMAIN\_59} ($95.3\% \to 74.6\%$, $-20.7$~pp), \texttt{SSRT\_59} ($72.8\% \to 55.0\%$, $-17.8$~pp), \texttt{Australia-ASSA\_02} ($100.0\% \to 71.8\%$, $-28.2$~pp), and \texttt{BIR\_01} ($95.7\% \to 65.8\%$, $-29.9$~pp) retain substantially higher clean recall.
+    \item When restricted strictly to \textbf{catalog-harmonized bursts} ($\ge 5$ clean catalog bursts), station-level degradation contracts markedly: \texttt{HUMAIN\_59} ($+4.4$~pp, 95.3\% leaked vs.\ 100.0\% clean), \texttt{SSRT\_59} ($+3.4$~pp, 74.6\% vs.\ 78.0\%), \texttt{ALASKA-COHOE\_63} ($-8.0$~pp, 92.6\% vs.\ 84.6\%), \texttt{BIR\_01} ($-11.5$~pp, 95.7\% vs.\ 84.2\%), and \texttt{Australia-ASSA\_02} ($-15.2$~pp, 100.0\% vs.\ 84.8\%) maintain strong autonomous detection, confirming that the extreme 56--82~pp raw drops in Figure~\ref{fig:stations} are largely driven by uneven station-level concentrations of uncatalogued PI-reinspected faint bursts.
 \end{itemize}
 
 \section{Operational Base-Rate Sensitivity}
@@ -240,7 +232,7 @@ Based on our empirical findings, we offer four recommendations for machine learn
 Our independent evaluation audit confirms that multi-station temporal event leakage in \textsc{FlareSense-v2} is a genuine, measurable phenomenon, but its causal contribution to the observed 45.28~pp recall deficit is modest (0 to 6~pp depending on operating threshold). The vast majority of the deficit is driven by an asymmetric annotation protocol combined with intrinsic burst size and visibility. Once annotation scope is harmonized, the convolutional architecture retains high physical detection capability ($\text{AUROC} > 0.977$). However, deployment requires resolving background calibration distribution shifts and addressing operational base-rate sensitivity through multi-station coincidence verification.
 
 \section*{Data and Code Availability}
-The full replication codebase, statistical evaluation scripts, and precomputed results supporting this audit are publicly available under the MIT license at \url{https://github.com/Farrior13/FlareSense-v2-Audit} (release tag \texttt{v1.0.1}). The e-CALLISTO radio spectrometer data and official burst catalog are openly distributed by the international e-CALLISTO network at \url{https://www.e-callisto.org/}.
+The full replication codebase, statistical evaluation scripts, and precomputed results supporting this audit are publicly available under the MIT license at \url{https://github.com/Farrior13/FlareSense-v2-Audit} (release tag \texttt{v1.0.2}). The e-CALLISTO radio spectrometer data and official burst catalog are openly distributed by the international e-CALLISTO network at \url{https://www.e-callisto.org/}.
 
 \bibliographystyle{plain}
 \bibliography{references}

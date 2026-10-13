@@ -1,5 +1,6 @@
 import os
 import json
+from pathlib import Path
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
@@ -13,8 +14,10 @@ plt.rcParams['grid.color'] = '#eeeeee'
 plt.rcParams['grid.linestyle'] = '--'
 plt.rcParams['grid.alpha'] = 0.7
 
-RESULTS_DIR = r"C:\Users\User\Desktop\FlareSense-v2-Audit\results"
-FIG_DIR = r"C:\Users\User\Desktop\FlareSense-v2-Audit\figures"
+ROOT = Path(__file__).resolve().parents[1]
+RESULTS_DIR = str(ROOT / "results")
+FIG_DIR = str(ROOT / "figures")
+PAPER_FIG_DIR = str(ROOT / "paper" / "figures")
 os.makedirs(FIG_DIR, exist_ok=True)
 
 with open(os.path.join(RESULTS_DIR, "core_results.json"), "r") as f:
@@ -26,7 +29,7 @@ with open(os.path.join(RESULTS_DIR, "breakdown_results.json"), "r") as f:
 # ==========================================
 # FIGURE 1: Leaked vs Clean Performance Collapse
 # ==========================================
-fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 5), dpi=300)
+fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12.5, 5.3), dpi=300)
 
 metrics = ['Recall', 'F1-Score', 'Precision*']
 leaked_vals = [
@@ -43,16 +46,18 @@ clean_vals = [
 x = np.arange(len(metrics))
 width = 0.35
 
-bars1 = ax1.bar(x - width/2, leaked_vals, width, label='Leaked (Observed in Train by >=1 Station)', color='#e05252', edgecolor='#b33939', alpha=0.9)
-bars2 = ax1.bar(x + width/2, clean_vals, width, label='Clean (True Unseen Events, Exposure = 0)', color='#4a90e2', edgecolor='#2c6bb5', alpha=0.9)
+bars1 = ax1.bar(x - width/2, leaked_vals, width, label='Leaked Bursts / Full Test Baseline', color='#e05252', edgecolor='#b33939', alpha=0.9)
+bars2 = ax1.bar(x + width/2, clean_vals, width, label='Clean Subset (Unseen Events, Exposure = 0)', color='#4a90e2', edgecolor='#2c6bb5', alpha=0.9)
 
 ax1.set_ylabel('Score (%)', fontsize=12, fontweight='bold')
 ax1.set_title('A: Observational Performance Disparity on Unseen Events', fontsize=11.5, fontweight='bold', pad=12)
 ax1.set_xticks(x)
 ax1.set_xticklabels(metrics, fontsize=11, fontweight='semibold')
-ax1.set_ylim(0, 110)
+ax1.set_ylim(0, 122)
 ax1.grid(axis='y', alpha=0.6)
-ax1.legend(loc='upper right', frameon=True, facecolor='white', framealpha=0.9)
+ax1.legend(loc='upper right', frameon=True, facecolor='white', framealpha=0.95, fontsize=9.5)
+ax1.text(0.01, -0.14, '*Clean precision adjusted to full-test positive prevalence (13.42%)',
+         transform=ax1.transAxes, fontsize=8.5, fontstyle='italic', color='#555555')
 
 for bar in bars1:
     yval = bar.get_height()
@@ -83,23 +88,21 @@ ax2.set_xlabel('Quantiles of Model Confidence', fontsize=12, fontweight='bold')
 ax2.set_title('B: Confidence Shift Between Leaked and Clean Events', fontsize=11.5, fontweight='bold', pad=12)
 ax2.set_ylim(-0.02, 1.02)
 ax2.grid(True, alpha=0.6)
-ax2.legend(loc='upper left', frameon=True, facecolor='white', framealpha=0.9)
-
-PAPER_FIG_DIR = r"C:\Users\User\Desktop\FlareSense-v2-Audit\paper\figures"
+ax2.legend(loc='upper left', frameon=True, facecolor='white', framealpha=0.95, fontsize=9.5)
 
 plt.tight_layout()
-fig.savefig(os.path.join(FIG_DIR, "fig1_leakage_disparity.png"), dpi=300)
-fig.savefig(os.path.join(FIG_DIR, "fig1_leakage_disparity.pdf"))
+fig.savefig(os.path.join(FIG_DIR, "fig1_leakage_disparity.png"), dpi=300, bbox_inches='tight')
+fig.savefig(os.path.join(FIG_DIR, "fig1_leakage_disparity.pdf"), bbox_inches='tight')
 if os.path.exists(PAPER_FIG_DIR):
-    fig.savefig(os.path.join(PAPER_FIG_DIR, "fig1_leakage_disparity.png"), dpi=300)
-    fig.savefig(os.path.join(PAPER_FIG_DIR, "fig1_leakage_disparity.pdf"))
+    fig.savefig(os.path.join(PAPER_FIG_DIR, "fig1_leakage_disparity.png"), dpi=300, bbox_inches='tight')
+    fig.savefig(os.path.join(PAPER_FIG_DIR, "fig1_leakage_disparity.pdf"), bbox_inches='tight')
 plt.close(fig)
 print("Saved fig1_leakage_disparity dynamically")
 
 # ==========================================
 # FIGURE 2: Exposure-Response Gradient & DiD
 # ==========================================
-fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(13, 5), dpi=300)
+fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(13, 5.2), dpi=300)
 
 gradient = core['confound_controls']['FlareSense-v2']['exposure_gradient']
 stations_cat = [g['trainval_stations'] for g in gradient]
@@ -121,8 +124,8 @@ ax1.set_ylim(25, 108)
 ax1.grid(True, alpha=0.6)
 ax1.legend(loc='lower right', frameon=True, facecolor='white')
 
-# Panel B: Difference-in-Differences
-models = ['Baseline Control\n(Old HF Preds)', 'FlareSense-v2\n(arXiv:2607.26014)']
+# Panel B: Observational Difference-in-Differences Across Checkpoints
+models = ['Earlier HF Checkpoint\n(Threshold p >= 0.50)', 'Published FlareSense-v2\n(Tuned on Test, p >= 0.426)']
 clean_r = [
     core['full_vs_clean']['old_HF_predictions']['bucket_15min']['clean']['recall'] * 100,
     core['full_vs_clean']['FlareSense-v2']['bucket_15min']['clean']['recall'] * 100
@@ -134,39 +137,46 @@ leaked_r = [
 
 bx = np.arange(len(models))
 bwidth = 0.32
-ax2.bar(bx - bwidth/2, clean_r, bwidth, label='Clean Recall', color='#5dade2', edgecolor='#2980b9')
-ax2.bar(bx + bwidth/2, leaked_r, bwidth, label='Leaked Recall', color='#e74c3c', edgecolor='#c0392b')
+b_clean = ax2.bar(bx - bwidth/2, clean_r, bwidth, label='Clean Recall', color='#5dade2', edgecolor='#2980b9')
+b_leaked = ax2.bar(bx + bwidth/2, leaked_r, bwidth, label='Leaked Recall', color='#e74c3c', edgecolor='#c0392b')
+
+for bar in b_clean:
+    yv = bar.get_height()
+    ax2.text(bar.get_x() + bar.get_width()/2.0, yv + 1.2, f"{yv:.1f}%", ha='center', va='bottom', fontsize=9.5, fontweight='bold', color='#2980b9')
+for bar in b_leaked:
+    yv = bar.get_height()
+    ax2.text(bar.get_x() + bar.get_width()/2.0, yv + 1.2, f"{yv:.1f}%", ha='center', va='bottom', fontsize=9.5, fontweight='bold', color='#c0392b')
 
 ax2.set_xticks(bx)
-ax2.set_xticklabels(models, fontsize=11, fontweight='bold')
+ax2.set_xticklabels(models, fontsize=10.5, fontweight='bold')
 ax2.set_ylabel('Recall (%)', fontsize=11, fontweight='bold')
-ax2.set_title('B: Difference-in-Differences Causal Isolation', fontsize=12, fontweight='bold', pad=12)
-ax2.set_ylim(0, 110)
+ax2.set_title('B: Observational DiD Contrast Across Checkpoints', fontsize=12, fontweight='bold', pad=12)
+ax2.set_ylim(0, 122)
 ax2.grid(axis='y', alpha=0.6)
 ax2.legend(loc='upper left', frameon=True, facecolor='white')
 
 # DiD Bracket
 did_val = core['confound_controls']['DiD_v2_minus_old_leaked_minus_clean_pp']
 ci = core['confound_controls']['DiD_ci95_pp_cluster']
-ax2.annotate(f"Causal DiD Boost:\n+{did_val:.1f} pp (p < 0.001)\n95% CI: [{ci[0]:.1f}, {ci[1]:.1f}]",
-            xy=(1 + bwidth/2, 90), xytext=(0.5, 95),
-            ha='center', fontsize=10, fontweight='heavy', color='#8e44ad',
-            bbox=dict(boxstyle='round,pad=0.5', facecolor='#f4ecf7', edgecolor='#8e44ad', lw=1.5),
+ax2.annotate(f"Observational DiD Contrast:\n+{did_val:.1f} pp (p < 0.001)\n95% CI: [{ci[0]:.1f}, {ci[1]:.1f}]",
+            xy=(1 + bwidth/2, 95), xytext=(0.45, 102),
+            ha='center', fontsize=9.5, fontweight='heavy', color='#8e44ad',
+            bbox=dict(boxstyle='round,pad=0.45', facecolor='#f4ecf7', edgecolor='#8e44ad', lw=1.5),
             arrowprops=dict(arrowstyle='->', lw=1.8, color='#8e44ad'))
 
 plt.tight_layout()
-fig.savefig(os.path.join(FIG_DIR, "fig2_exposure_and_did.png"), dpi=300)
-fig.savefig(os.path.join(FIG_DIR, "fig2_exposure_and_did.pdf"))
+fig.savefig(os.path.join(FIG_DIR, "fig2_exposure_and_did.png"), dpi=300, bbox_inches='tight')
+fig.savefig(os.path.join(FIG_DIR, "fig2_exposure_and_did.pdf"), bbox_inches='tight')
 if os.path.exists(PAPER_FIG_DIR):
-    fig.savefig(os.path.join(PAPER_FIG_DIR, "fig2_exposure_and_did.png"), dpi=300)
-    fig.savefig(os.path.join(PAPER_FIG_DIR, "fig2_exposure_and_did.pdf"))
+    fig.savefig(os.path.join(PAPER_FIG_DIR, "fig2_exposure_and_did.png"), dpi=300, bbox_inches='tight')
+    fig.savefig(os.path.join(PAPER_FIG_DIR, "fig2_exposure_and_did.pdf"), bbox_inches='tight')
 plt.close(fig)
 print("Saved fig2_exposure_and_did")
 
 # ==========================================
 # FIGURE 3: Per-Station Recall Collapse
 # ==========================================
-fig, ax = plt.subplots(figsize=(11, 7), dpi=300)
+fig, ax = plt.subplots(figsize=(11, 7.2), dpi=300)
 
 stations_data = breakdown['FlareSense-v2']['per_station']
 # Filter stations with at least 5 clean bursts to have meaningful statistics
@@ -189,22 +199,23 @@ ax.set_yticks(y_pos)
 ax.set_yticklabels(y_names, fontsize=10, fontweight='bold')
 ax.invert_yaxis()  # top-down
 ax.set_xlabel('Recall (%)', fontsize=11, fontweight='bold')
-ax.set_title('Station-Level Recall Degradation (Top 10 Stations with >=5 Clean Bursts)', fontsize=12, fontweight='bold', pad=14)
-ax.set_xlim(0, 115)
+ax.set_title('Station-Level Recall Degradation (Top 10 Stations with >=5 Clean Bursts)', fontsize=12, fontweight='bold', pad=36)
+ax.set_xlim(0, 118)
 ax.grid(axis='x', alpha=0.6)
-ax.legend(loc='lower right', frameon=True, facecolor='white', framealpha=0.95)
+ax.legend(loc='lower center', bbox_to_anchor=(0.5, 1.01), ncol=2, frameon=True, facecolor='white', framealpha=0.95, fontsize=10)
 
 for i, (r_l, r_c) in enumerate(zip(rec_leaked, rec_clean)):
     drop = r_l - r_c
     ax.text(r_l + 1.5, i - bar_h/2, f"{r_l:.1f}%", va='center', fontsize=9, fontweight='semibold', color='#b33939')
     ax.text(r_c + 1.5, i + bar_h/2, f"{r_c:.1f}%", va='center', fontsize=9, fontweight='semibold', color='#2c6bb5')
-    ax.text(105, i, f"-{drop:.0f} pp", va='center', ha='center', fontsize=10, fontweight='bold', color='#c0392b')
+    ax.text(108, i, f"-{drop:.0f} pp", va='center', ha='center', fontsize=10, fontweight='bold', color='#c0392b')
 
 plt.tight_layout()
-fig.savefig(os.path.join(FIG_DIR, "fig3_station_degradation.png"), dpi=300)
-fig.savefig(os.path.join(FIG_DIR, "fig3_station_degradation.pdf"))
+fig.savefig(os.path.join(FIG_DIR, "fig3_station_degradation.png"), dpi=300, bbox_inches='tight')
+fig.savefig(os.path.join(FIG_DIR, "fig3_station_degradation.pdf"), bbox_inches='tight')
 if os.path.exists(PAPER_FIG_DIR):
-    fig.savefig(os.path.join(PAPER_FIG_DIR, "fig3_station_degradation.png"), dpi=300)
-    fig.savefig(os.path.join(PAPER_FIG_DIR, "fig3_station_degradation.pdf"))
+    fig.savefig(os.path.join(PAPER_FIG_DIR, "fig3_station_degradation.png"), dpi=300, bbox_inches='tight')
+    fig.savefig(os.path.join(PAPER_FIG_DIR, "fig3_station_degradation.pdf"), bbox_inches='tight')
 plt.close(fig)
 print("Saved fig3_station_degradation")
+

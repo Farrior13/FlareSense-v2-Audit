@@ -1,0 +1,94 @@
+\begin{thebibliography}{10}
+
+\bibitem{ahmadzadeh2021train}
+Azim Ahmadzadeh, Berkay Aydin, Manolis~K. Georgoulis, Dustin~J. Kempton,
+  Sushant~S. Mahajan, and Rafal~A. Angryk.
+\newblock How to train your flare prediction model: Revisiting robust sampling
+  of rare events.
+\newblock {\em The Astrophysical Journal Supplement Series}, 254(2):23, 2021.
+
+\bibitem{benz2009callisto}
+Arnold~O. Benz, Christian Monstein, Hanspeter Meyer, P.~K. Manoharan,
+  R.~Ramesh, Alexander Altyntsev, Alejandro Lara, Julian Paez, and Kyung-Suk
+  Cho.
+\newblock A world-wide net of solar radio spectrometers: {e-CALLISTO}.
+\newblock {\em Earth, Moon, and Planets}, 104(1-4):277--285, 2009.
+
+\bibitem{bloomfield2012toward}
+D.~Shaun Bloomfield, P.~A. Higgins, R.~T.~James McAteer, and Peter~T.
+  Gallagher.
+\newblock Toward reliable benchmarking of solar flare forecasting methods.
+\newblock {\em The Astrophysical Journal Letters}, 747(2):L41, 2012.
+
+\bibitem{gordo2023dearce}
+Javier Bussons~Gordo, Mario Fern{\'a}ndez~Ruiz, Manuel Prieto~Mateo, J.~A.
+  D{\'\i}az, F.~C. de~la O, J.~I. Hidalgo, and Christian Monstein.
+\newblock Automatic burst detection in solar radio spectrograms using deep
+  learning: {deARCE} method.
+\newblock {\em Solar Physics}, 298(6):82, 2023.
+
+\bibitem{camporeale2019challenge}
+Enrico Camporeale.
+\newblock The challenge of machine learning in space weather: Nowcasting and
+  forecasting.
+\newblock {\em Space Weather}, 17(8):1166--1207, 2019.
+
+\bibitem{cawley2010overfitting}
+Gavin~C. Cawley and Nicola L.~C. Talbot.
+\newblock On over-fitting in model selection and subsequent selection bias in
+  performance evaluation.
+\newblock {\em Journal of Machine Learning Research}, 11:2079--2107, 2010.
+
+\bibitem{fernandezruiz2022automatic}
+Mario Fern{\'a}ndez~Ruiz, Javier Bussons~Gordo, Manuel Prieto~Mateo, and
+  Christian Monstein.
+\newblock Automatic detection of {e-Callisto} solar radio bursts by deep neural
+  networks.
+\newblock In {\em 2022 3rd URSI Atlantic and Asia Pacific Radio Science Meeting
+  (AT-AP-RASC)}, pages 1--4, 2022.
+
+\bibitem{he2016deep}
+Kaiming He, Xiangyu Zhang, Shaoqing Ren, and Jian Sun.
+\newblock Deep residual learning for image recognition.
+\newblock In {\em Proceedings of the IEEE Conference on Computer Vision and
+  Pattern Recognition (CVPR)}, pages 770--778, 2016.
+
+\bibitem{kapoor2023leakage}
+Sayash Kapoor and Arvind Narayanan.
+\newblock Leakage and the reproducibility crisis in machine-learning-based
+  science.
+\newblock {\em Patterns}, 4(9):100804, 2023.
+
+\bibitem{kaufman2012leakage}
+Shachar Kaufman, Saharon Rosset, Claudia Perlich, and Ori Stitelman.
+\newblock Leakage in data mining: Formulation, detection, and avoidance.
+\newblock {\em ACM Transactions on Knowledge Discovery from Data (TKDD)},
+  6(4):1--21, 2012.
+
+\bibitem{leka2019comparison}
+K.~D. Leka, Sung-Hong Park, Kanya Kusano, Jesse Andries, Graham Barnes, Sean
+  Bingham, D.~Shaun Bloomfield, et~al.
+\newblock A comparison of flare forecasting methods. {II.} benchmarks, metrics,
+  and performance results for operational solar flare forecasting systems.
+\newblock {\em The Astrophysical Journal Supplement Series}, 243(2):36, 2019.
+
+\bibitem{loshchilov2019adamw}
+Ilya Loshchilov and Frank Hutter.
+\newblock Decoupled weight decay regularization.
+\newblock In {\em International Conference on Learning Representations (ICLR)},
+  2019.
+
+\bibitem{park2019specaugment}
+Daniel~S. Park, William Chan, Yu~Zhang, Chung-Cheng Chiu, Barret Zoph, Ekin~D.
+  Cubuk, and Quoc~V. Le.
+\newblock {SpecAugment}: A simple data augmentation method for automatic speech
+  recognition.
+\newblock In {\em Interspeech 2019}, pages 2613--2617, 2019.
+
+\bibitem{timmel2026flaresense}
+Vincenzo Timmel, Andr{\'e} Csillaghy, and Christian Monstein.
+\newblock Automated solar radio burst detection using deep learning on
+  augmented {e-Callisto} data.
+\newblock {\em arXiv preprint arXiv:2607.26014}, 2026.
+
+\end{thebibliography}

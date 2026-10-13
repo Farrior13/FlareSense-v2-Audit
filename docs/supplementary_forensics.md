@@ -300,25 +300,72 @@ Note: `val_split: test` was **never modified** in any of these commits.
 
 ---
 
-## E. Code flow: how val_split becomes the training validation set
+## E. Code flow: how `val_split: test` and `test_avg_f1` feed the W&B sweep
 
 ```
 main.py:57    config = yaml.safe_load(file)
 main.py:74    config = wandb.config           # overwrite with W&B (for sweep)
-main.py:86    ds_valid = load_dataset(         # LOAD VALIDATION DATA
+main.py:86    ds_valid = load_dataset(        # LOAD VALIDATION DATA
 main.py:87        config["data"]["val_path"],
 main.py:88        split=config["data"]["val_split"]  # → "test"
 main.py:89    )
+main.py:92    ds_test = load_dataset(         # LOAD TEST DATA
+main.py:93        config["data"]["test_path"],
+main.py:94        split=config["data"]["test_split"] # → "test"
+main.py:95    )
 main.py:150   ds_valid = EcallistoDatasetBinary(ds_valid, ...)
-main.py:177   val_dataloader = DataLoader(ds_valid, ...)
-main.py:210   trainer = Trainer(val_check_interval=1.0)  # validate every epoch
+main.py:159   ds_test  = EcallistoDatasetBinary(ds_test, ...)
+main.py:177   val_dataloader  = DataLoader(ds_valid, ...)
+main.py:185   test_dataloader = DataLoader(ds_test, ...)
+main.py:210   trainer = Trainer(val_check_interval=1.0)  # validate on test every epoch
 main.py:217   trainer.fit(model, train_dataloaders, val_dataloaders=val_dataloader)
               ↓
 ecallisto_model.py:118  def validation_step(self, batch, batch_idx):
 ecallisto_model.py:146  def on_validation_epoch_end(self):
-ecallisto_model.py:164      avg_f1 = torch.mean(torch.tensor(antenna_f1_scores))
-ecallisto_model.py:165      self.log("val_avg_f1", avg_f1, prog_bar=True)  # → W&B
+ecallisto_model.py:183      avg_f1 = torch.mean(torch.tensor(antenna_f1_scores))
+ecallisto_model.py:191      self.log("val_avg_f1", avg_f1, prog_bar=True)
               ↓
-sweep.yaml:7    name: test_avg_f1              # W&B maximizes this
-sweep.yaml:8    goal: maximize
+main.py:245   trainer.test(model, test_dataloader)       # run at end of training
+              ↓
+ecallisto_model.py:195  def test_step(self, batch, batch_idx):
+ecallisto_model.py:204  def on_test_epoch_end(self):
+ecallisto_model.py:228      avg_f1 = torch.mean(torch.tensor(antenna_f1_scores))
+ecallisto_model.py:236      self.log("test_avg_f1", avg_f1, prog_bar=True)  # → W&B
+              ↓
+sweep.yaml:18   name: test_avg_f1             # W&B Bayesian controller maximizes this
+sweep.yaml:19   goal: maximize
 ```
+
+---
+
+## F. Independent Verification from Timmel et al. (2026) Published Tables (`80.53%`)
+
+1. **Section 5.2 (Hyperparameter Tuning):** *"This configuration reached an F1 score of **80.53%** on the validation set."*
+2. **Section 5.3 (Model Selection):** *"Across all runs, the maximum F1-score was **80.5%**..."*
+3. **Appendix B, Table 5 (Detailed Performance Metrics by Instrument on the Test Set):**
+   Computing the unweighted mean (`test_avg_f1`) of the 26 test-set F1 scores reported in Table 5:
+   $$(86.2 + 82.8 + 82.6 + 83.2 + 83.8 + 87.2 + 88.6 + 88.2 + 78.6 + 84.9 + 83.8 + 88.2 + 86.2 + 86.1 + 78.9 + 64.9 + 68.7 + 72.1 + 61.9 + 89.2 + 89.0 + 75.1 + 88.6 + 67.4 + 90.7 + 57.1) / 26 = \mathbf{80.5385\%} \approx \mathbf{80.53\%}.$$
+   This confirms directly from the printed manuscript that the "validation set F1 score (80.53%)" reported in Section 5.2 is the unweighted mean of the 26 per-instrument test-set F1 scores (`test_avg_f1`).
+
+---
+
+## G. Inactive Class Weighting in Binary Cross-Entropy (`weight=` vs `pos_weight=`)
+
+In `ecallisto_dataset.py` (lines 242–252):
+```python
+    def get_class_weights(self):
+        labels = self.dataset[self.label_name]
+        cw = compute_class_weight("balanced", classes=np.unique(labels), y=labels)
+        return torch.tensor(cw[1])
+```
+And in `ecallisto_model.py` (lines 111–116):
+```python
+        loss = F.binary_cross_entropy_with_logits(
+            y_hat,
+            y_smoothed.float(),
+            weight=self.class_weights,
+            reduction="mean",
+        )
+```
+In PyTorch, `F.binary_cross_entropy_with_logits` uses `pos_weight` to weight positive examples relative to negative examples, whereas `weight` is a per-batch element multiplier. Passing the scalar `self.class_weights` (`cw[1]`) to `weight=` multiplies both $y=1$ and $y=0$ losses by the same constant scalar, leaving relative class weighting unchanged (and having zero effect under scale-invariant AdamW updates).
+

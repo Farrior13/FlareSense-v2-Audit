@@ -1,8 +1,12 @@
 import os
+from pathlib import Path
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 
-FIG_DIR = r"C:\Users\User\Desktop\FlareSense-v2-Audit\figures"
+ROOT = Path(__file__).resolve().parents[1]
+FIG_DIR = str(ROOT / "figures")
+PAPER_FIG_DIR = str(ROOT / "paper" / "figures")
+os.makedirs(FIG_DIR, exist_ok=True)
 
 fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 6.5), dpi=300)
 
@@ -34,7 +38,7 @@ for s, y, sp, c in zip(stations, y_offsets, splits_random, colors_random):
     ax1.text(32.5, y, sp, ha='center', va='center', fontsize=9, fontweight='bold', color='white')
 
 # Arrow pointing to leakage
-ax1.annotate("Model memorizes event physics\nfrom Stations A & B in TRAIN,\nartificially inflating TEST score!",
+ax1.annotate("Cross-Station Overlap:\nSame physical event appears in\nboth TRAIN/VAL and TEST splits",
              xy=(43, 16), xytext=(55, 16),
              va='center', fontsize=10, fontweight='bold', color='#c0392b',
              bbox=dict(boxstyle='round,pad=0.5', facecolor='#fdedec', edgecolor='#c0392b', lw=1.5),
@@ -75,5 +79,9 @@ ax2.annotate("Strict Event-Group Isolation:\nAll parallel station observations\n
 plt.tight_layout()
 fig.savefig(os.path.join(FIG_DIR, "fig0_concept_leakage_mechanism.png"), dpi=300)
 fig.savefig(os.path.join(FIG_DIR, "fig0_concept_leakage_mechanism.pdf"))
+if os.path.exists(PAPER_FIG_DIR):
+    fig.savefig(os.path.join(PAPER_FIG_DIR, "fig0_concept_leakage_mechanism.png"), dpi=300)
+    fig.savefig(os.path.join(PAPER_FIG_DIR, "fig0_concept_leakage_mechanism.pdf"))
 plt.close(fig)
 print("Saved fig0_concept_leakage_mechanism")
+
